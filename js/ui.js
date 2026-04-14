@@ -176,3 +176,6 @@ function getWeekEnd() {
   const diff = d.getDate() - day + (day === 0 ? 0 : 7); // Sunday
   return new Date(d.setDate(diff)).toISOString().split('T')[0];
 }
+function getToday() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+}
