@@ -324,7 +324,7 @@ let allAgents     = [];
 let processedDays = {};
 let selectedDay   = null;
 let viewModeVal   = 'day';
-const TODAY       = new Date().toISOString().split('T')[0];
+const TODAY       = getToday();
 
 async function init() {
   const { data } = await db.from('agents').select('id,formal_name,xcally_name').eq('status','Active').order('formal_name');
