@@ -196,7 +196,7 @@ async function loadAll() {
 // ── KPIs ──
 async function loadKPIs() {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA');
     const month = new Date().toISOString().slice(0, 7);
 
     // Total Agents
@@ -335,7 +335,7 @@ async function loadTodaySchedule() {
   const list = document.getElementById('today-schedule');
   list.innerHTML = '<div class="p-20 center muted">Loading...</div>';
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA');
     const { data } = await db.from('schedule')
       .select('*, agents(formal_name)')
       .eq('shift_date', today)
