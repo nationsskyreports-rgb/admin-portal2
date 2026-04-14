@@ -72,19 +72,6 @@ body::after {
   margin-bottom: 32px;
 }
 
-.brand-logo-wrap {
-  width: 120px;
-  height: 120px;
-  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-  border-radius: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 20px;
-  box-shadow: 0 8px 32px rgba(59,130,246,0.4);
-  animation: float 3s ease-in-out infinite;
-}
-
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50%       { transform: translateY(-6px); }
@@ -176,7 +163,7 @@ body::after {
   transition: color 0.2s;
   z-index: 2;
 }
-  .pw-toggle:hover { color: var(--gold); }
+.pw-toggle:hover { color: var(--gold); }
 
 .btn-login {
   width: 100%;
@@ -323,7 +310,7 @@ async function doLogin() {
       loginTime: Date.now()
     }));
 
-    window.location.href = 'index.html';
+    window.location.href = '/admin-portal2/index.html';
 
   } catch(e) {
     btn.disabled = false;
@@ -335,7 +322,7 @@ async function doLogin() {
 
 document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-if (sessionStorage.getItem('nos-admin')) window.location.href = 'index.html';
+if (sessionStorage.getItem('nos-admin')) window.location.href = '/admin-portal2/index.html';
 </script>
 </body>
 </html>
