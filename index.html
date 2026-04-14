@@ -306,7 +306,7 @@ async function loadRecentRequests() {
   list.innerHTML = '<div class="p-20 center muted">Loading...</div>';
   try {
     const { data } = await db.from('requests')
-      .select('*, agents(full_name)')
+      .select('*, agents(formal_name)')
       .eq('status', 'Pending')
       .order('created_at', { ascending: false })
       .limit(5);
@@ -319,7 +319,7 @@ async function loadRecentRequests() {
     list.innerHTML = data.map(r => `
       <div class="list-item">
         <div class="list-info">
-          <div class="list-title">${r.agents?.full_name || 'Unknown'}</div>
+          <div class="list-title">${r.agents?.formal_name || 'Unknown'}</div>
           <div class="list-sub">${r.request_type} • ${r.start_date}</div>
         </div>
         <div class="list-action">
@@ -337,7 +337,7 @@ async function loadTodaySchedule() {
   try {
     const today = new Date().toISOString().split('T')[0];
     const { data } = await db.from('schedule')
-      .select('*, agents(full_name)')
+      .select('*, agents(formal_name)')
       .eq('shift_date', today)
       .eq('day_type', 'Work')
       .limit(5);
@@ -350,7 +350,7 @@ async function loadTodaySchedule() {
     list.innerHTML = data.map(s => `
       <div class="list-item">
         <div class="list-info">
-          <div class="list-title">${s.agents?.full_name || 'Unknown'}</div>
+          <div class="list-title">${s.agents?.formal_name || 'Unknown'}</div>
           <div class="list-sub">${s.shift_start} - ${s.shift_end}</div>
         </div>
         <div class="list-action">
@@ -367,7 +367,7 @@ async function loadRecentCalls() {
   list.innerHTML = '<div class="p-20 center muted">Loading...</div>';
   try {
     const { data } = await db.from('call_logs')
-      .select('*, agents(full_name)')
+      .select('agent_name, call_reason, call_type, logged_at')
       .order('logged_at', { ascending: false })
       .limit(5);
 
@@ -379,7 +379,7 @@ async function loadRecentCalls() {
     list.innerHTML = data.map(c => `
       <div class="list-item">
         <div class="list-info">
-          <div class="list-title">${c.agents?.full_name || 'Unknown'}</div>
+          <div class="list-title">${c.agent_name || 'Unknown'}</div>
           <div class="list-sub">${c.call_reason} • ${new Date(c.logged_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
         </div>
         <div class="list-action">
