@@ -160,3 +160,19 @@ function renderSidebar() {
       </button>
     </div>`;
 }
+// ═══════════════════════════════════════════
+// NOS Admin — Date Helpers
+// ═══════════════════════════════════════════
+function getWeekStart() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  return new Date(d.setDate(diff)).toISOString().split('T')[0];
+}
+
+function getWeekEnd() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? 0 : 7); // Sunday
+  return new Date(d.setDate(diff)).toISOString().split('T')[0];
+}
