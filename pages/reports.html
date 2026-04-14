@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOS Admin — Reports</title>
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="admin-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="page-title">Reports</div>
+        <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Analytics & Insights</div>
+      </div>
+      <div class="topbar-right">
+        <select id="month-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
+          <option value="01">January</option><option value="02">February</option>
+          <option value="03">March</option><option value="04">April</option>
+          <option value="05">May</option><option value="06">June</option>
+          <option value="07">July</option><option value="08">August</option>
+          <option value="09">September</option><option value="10">October</option>
+          <option value="11">November</option><option value="12">December</option>
+        </select>
+        <select id="year-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadAll()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+        <div class="admin-chip">
+          <div class="admin-avatar" id="admin-avatar">KR</div>
+          <span class="admin-name" id="admin-name">Admin</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- KPI OVERVIEW -->
+      <div class="kpi-grid fade-up" style="grid-template-columns:repeat(5,1fr);">
+        <div class="kpi-card blue"><span class="kpi-icon">📞</span><div class="kpi-label">Total Calls</div><div class="kpi-value" id="r-calls">—</div></div>
+        <div class="kpi-card green"><span class="kpi-icon">🏢</span><div class="kpi-label">Project Leads</div><div class="kpi-value" id="r-leads">—</div></div>
+        <div class="kpi-card gold"><span class="kpi-icon">📈</span><div class="kpi-label">Avg Conformance</div><div class="kpi-value" id="r-conf">—</div></div>
+        <div class="kpi-card purple"><span class="kpi-icon">🎧</span><div class="kpi-label">Avg AHT</div><div class="kpi-value" id="r-aht">—</div></div>
+        <div class="kpi-card orange"><span class="kpi-icon">⏳</span><div class="kpi-label">Pending Requests</div><div class="kpi-value" id="r-pending">—</div></div>
+      </div>
+
+      <!-- CHARTS ROW 1 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title"><i class="fas fa-chart-pie" style="color:var(--gold)"></i> Calls by Reason</div>
+            <span id="calls-total-label" style="font-size:11px;color:var(--muted);"></span>
+          </div>
+          <div style="padding:16px;height:260px;display:flex;align-items:center;justify-content:center;">
+            <canvas id="reason-chart"></canvas>
+          </div>
+        </div>
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title"><i class="fas fa-users" style="color:var(--gold)"></i> Calls by Agent</div>
+          </div>
+          <div style="padding:16px;height:260px;">
+            <canvas id="agent-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHARTS ROW 2 -->
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px;">
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title"><i class="fas fa-chart-line" style="color:var(--gold)"></i> Daily Call Trend</div>
+          </div>
+          <div style="padding:16px;height:220px;">
+            <canvas id="trend-chart"></canvas>
+          </div>
+        </div>
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title"><i class="fas fa-file-alt" style="color:var(--gold)"></i> Requests</div>
+          </div>
+          <div style="padding:16px;height:220px;display:flex;align-items:center;justify-content:center;">
+            <canvas id="requests-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI TABLE -->
+      <div class="section-card fade-up">
+        <div class="section-header">
+          <div class="section-title"><i class="fas fa-table" style="color:var(--gold)"></i> Agent Performance Table</div>
+          <span id="kpi-month-label" style="font-size:11px;color:var(--muted);"></span>
+        </div>
+        <div class="section-body no-pad">
+          <div class="table-wrap">
+            <table class="nos-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Conformance</th>
+                  <th>Missing Time</th>
+                  <th>Net Missing</th>
+                  <th>AHT</th>
+                  <th>Calls</th>
+                  <th>Excuses</th>
+                  <th>Quality</th>
+                  <th>Annual Left</th>
+                </tr>
+              </thead>
+              <tbody id="kpi-table-body">
+                <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/supabase.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+renderSidebar();
+applyThemeIcon();
+const session = checkAuth();
+if (session) {
+  document.getElementById('admin-name').innerText = session.username||'Admin';
+  document.getElementById('admin-avatar').innerText = initials(session.username||'Admin');
+}
+
+const now = new Date();
+document.getElementById('month-filter').value = String(now.getMonth()+1).padStart(2,'0');
+
+const CHART_COLORS = ['#D4AF37','#10B981','#3B82F6','#8B5CF6','#EF4444','#F59E0B','#EC4899','#14B8A6','#F97316','#6366F1'];
+const MONTH_NAMES  = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+let reasonChart, agentChart, trendChart, requestsChart;
+
+async function loadAll() {
+  const month     = document.getElementById('month-filter').value;
+  const year      = parseInt(document.getElementById('year-filter').value);
+  const monthName = MONTH_NAMES[parseInt(month)];
+  const dateFrom  = `${year}-${month}-01T00:00:00`;
+  const lastDay = new Date(year, parseInt(month), 0).getDate(); 
+  const dateTo  = `${year}-${month}-${String(lastDay).padStart(2,'0')}T23:59:59`;
+
+  document.getElementById('kpi-month-label').innerText = `${monthName} ${year}`;
+
+  await Promise.all([
+    loadCallStats(dateFrom, dateTo, monthName, year),
+    loadKPITable(monthName, year),
+    loadRequestsChart(),
+  ]);
+}
+
+// ── Call Stats ──
+async function loadCallStats(dateFrom, dateTo, monthName, year) {
+  const { data: calls } = await db.from('call_logs')
+    .select('call_reason, agent_name, logged_at')
+    .gte('logged_at', dateFrom)
+    .lte('logged_at', dateTo);
+
+  const total = calls?.length || 0;
+  document.getElementById('r-calls').innerText = total;
+  document.getElementById('calls-total-label').innerText = `${total} total`;
+
+  // Project leads
+  const { data: projReasons } = await db.from('call_reasons').select('name').eq('category','Projects Leads');
+  const projNames = (projReasons||[]).map(r=>r.name);
+  const leads = (calls||[]).filter(c => projNames.includes(c.call_reason)).length;
+  document.getElementById('r-leads').innerText = leads;
+
+  // By reason
+  const reasonCounts = {};
+  (calls||[]).forEach(c => {
+    const k = c.call_reason || 'Unknown';
+    reasonCounts[k] = (reasonCounts[k]||0) + 1;
+  });
+  const sortedReasons = Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  drawDoughnut('reason-chart', sortedReasons.map(e=>e[0]), sortedReasons.map(e=>e[1]), reasonChart, c=>reasonChart=c);
+
+  // By agent
+  const agentCounts = {};
+  (calls||[]).forEach(c => {
+    const k = c.agent_name || 'Unknown';
+    agentCounts[k] = (agentCounts[k]||0) + 1;
+  });
+  const sortedAgents = Object.entries(agentCounts).sort((a,b)=>b[1]-a[1]);
+  drawBar('agent-chart', sortedAgents.map(e=>e[0]), sortedAgents.map(e=>e[1]), agentChart, c=>agentChart=c);
+
+  // Daily trend
+  const dailyCounts = {};
+  (calls||[]).forEach(c => {
+    const day = c.logged_at?.split('T')[0];
+    if (day) dailyCounts[day] = (dailyCounts[day]||0) + 1;
+  });
+  const sortedDays = Object.entries(dailyCounts).sort((a,b)=>a[0].localeCompare(b[0]));
+  drawLine('trend-chart', sortedDays.map(e=>e[0].slice(5)), sortedDays.map(e=>e[1]), trendChart, c=>trendChart=c);
+}
+
+// ── KPI Table — reads from daily_performance + quality_scores + annual_leave ──
+async function loadKPITable(monthName, year) {
+  const tbody  = document.getElementById('kpi-table-body');
+  const month  = document.getElementById('month-filter').value;
+  const dateFrom = year+'-'+month+'-01';
+  const lastDay  = new Date(year, parseInt(month), 0).getDate();
+  const dateTo   = year+'-'+month+'-'+String(lastDay).padStart(2,'0');
+
+  tbody.innerHTML = `<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>`;
+
+  try {
+    const [agentsRes, perfRes, excusesRes, annualRes, qualityRes] = await Promise.all([
+      db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name'),
+      db.from('daily_performance').select('agent_id,conformance,missing_sec,active_sec,target_sec,avg_aht,calls').gte('perf_date',dateFrom).lte('perf_date',dateTo),
+      db.from('excuses').select('agent_id').eq('status','Approved').gte('excuse_date',dateFrom).lte('excuse_date',dateTo),
+      db.from('annual_leave').select('*').eq('year',year),
+      db.from('quality_scores').select('*').eq('month',monthName).eq('year',year),
+    ]);
+
+    const agents      = agentsRes.data  || [];
+    const perfData    = perfRes.data    || [];
+    const excusesData = excusesRes.data || [];
+    const annData     = annualRes.data  || [];
+    const qualityData = qualityRes.data || [];
+
+    // Avg conformance for KPI card
+    const confs = perfData.map(p => parseFloat(p.conformance||0)).filter(v=>v>0);
+    document.getElementById('r-conf').innerText = confs.length ? (confs.reduce((a,b)=>a+b,0)/confs.length).toFixed(0)+'%' : '—';
+
+    // Avg AHT for KPI card
+    const ahtArr = perfData.filter(p=>p.avg_aht>0);
+    document.getElementById('r-aht').innerText = ahtArr.length ? secToTime(Math.round(ahtArr.reduce((s,p)=>s+p.avg_aht,0)/ahtArr.length)) : '—';
+
+    if (!agents.length) {
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">👥</span>No agents</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = agents.map(agent => {
+      const agentPerf = perfData.filter(p => p.agent_id === agent.id);
+      let conformance = '—', missingTime = '—', netMissing = '—', avgAHT = '—', totalCalls = 0;
+
+      if (agentPerf.length) {
+        const avgConf = agentPerf.reduce((s,p)=>s+parseFloat(p.conformance||0),0)/agentPerf.length;
+        conformance   = avgConf.toFixed(1)+'%';
+
+        const totalMissingSec = agentPerf.reduce((s,p)=>s+(p.missing_sec||0),0);
+        const totalExtraSec   = agentPerf.reduce((s,p)=>s+Math.max(0,(p.active_sec||0)-(p.target_sec||0)),0);
+        const netMissingSec   = Math.max(0, totalMissingSec - totalExtraSec);
+
+        missingTime = totalMissingSec <= 300 ? 'Full Time' : secToTime(totalMissingSec);
+        netMissing  = netMissingSec   <= 300 ? 'Full Time' : secToTime(netMissingSec);
+
+        const ahtArr = agentPerf.filter(p=>p.avg_aht>0);
+        if (ahtArr.length) avgAHT = secToTime(Math.round(ahtArr.reduce((s,p)=>s+p.avg_aht,0)/ahtArr.length));
+        totalCalls = agentPerf.reduce((s,p)=>s+(p.calls||0),0);
+      }
+
+      const agentExcuses = excusesData.filter(e=>e.agent_id===agent.id);
+      const excHours     = agentExcuses.length * 2;
+      const excStr       = excHours > 0 ? excHours+' hrs' : 'None';
+
+      const ann        = annData.find(a=>a.agent_id===agent.id)||{};
+      const annLeft    = ann.remaining !== undefined ? ann.remaining : '—';
+      const quality    = qualityData.find(q=>q.agent_id===agent.id);
+      const confNum    = parseFloat(conformance)||0;
+      const confColor  = confNum>=98?'#10B981':confNum>=90?'#F59E0B':'#EF4444';
+
+      return `
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">${initials(agent.formal_name)}</div>
+              <span style="font-weight:700;font-size:13px;">${agent.formal_name}</span>
+            </div>
+          </td>
+          <td style="font-weight:800;color:${confColor};">${conformance}</td>
+          <td style="font-size:12px;color:${missingTime==='Full Time'?'#10B981':'#EF4444'};font-weight:700;">${missingTime}</td>
+          <td style="font-size:12px;color:${netMissing==='Full Time'?'#10B981':'#EF4444'};font-weight:700;">${netMissing}</td>
+          <td style="font-family:monospace;font-size:12px;">${avgAHT}</td>
+          <td style="font-weight:700;">${totalCalls}</td>
+          <td style="color:#F59E0B;font-size:12px;">${excStr}</td>
+          <td style="color:${quality?'var(--gold)':'var(--muted)'};">${quality?.score||'—'}</td>
+          <td>
+            ${annLeft!=='—'
+              ?`<span class="badge ${annLeft<=3?'badge-danger':'badge-success'}">${annLeft} days</span>`
+              :'<span style="color:var(--muted);">—</span>'}
+          </td>
+        </tr>`;
+    }).join('');
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">❌</span>Failed: ${e.message}</div></td></tr>`;
+    showToast('Failed: '+e.message, 'error');
+  }
+}
+
+// ── Requests Chart ──
+async function loadRequestsChart() {
+  const { count: pending  } = await db.from('requests').select('*',{count:'exact',head:true}).eq('status','Pending');
+  const { count: approved } = await db.from('requests').select('*',{count:'exact',head:true}).eq('status','Approved');
+  const { count: rejected } = await db.from('requests').select('*',{count:'exact',head:true}).eq('status','Rejected');
+
+  document.getElementById('r-pending').innerText = pending || 0;
+
+  drawDoughnut('requests-chart',
+    ['Pending','Approved','Rejected'],
+    [pending||0, approved||0, rejected||0],
+    requestsChart, c=>requestsChart=c,
+    ['#F59E0B','#10B981','#EF4444']
+  );
+}
+
+// ── Chart Helpers ──
+function drawDoughnut(id, labels, data, instance, setter, colors) {
+  if (instance) instance.destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  setter(new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors||CHART_COLORS, borderWidth:0, hoverOffset:6 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins: {
+        legend: { position:'right', labels:{ color:'#6B7A99', font:{size:10}, padding:10, boxWidth:10 } }
+      }
+    }
+  }));
+}
+
+function drawBar(id, labels, data, instance, setter) {
+  if (instance) instance.destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  setter(new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets:[{ data, backgroundColor: CHART_COLORS, borderRadius:6, borderSkipped:false }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ ticks:{color:'#6B7A99',font:{size:10}}, grid:{display:false} },
+        y:{ ticks:{color:'#6B7A99',font:{size:10}}, grid:{color:'rgba(212,175,55,0.08)'}, beginAtZero:true }
+      }
+    }
+  }));
+}
+
+function drawLine(id, labels, data, instance, setter) {
+  if (instance) instance.destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  setter(new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets:[{
+        data,
+        borderColor:'#D4AF37',
+        backgroundColor:'rgba(212,175,55,0.08)',
+        fill:true, tension:0.4,
+        pointBackgroundColor:'#D4AF37', pointRadius:3,
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ ticks:{color:'#6B7A99',font:{size:10}}, grid:{display:false} },
+        y:{ ticks:{color:'#6B7A99',font:{size:10}}, grid:{color:'rgba(212,175,55,0.08)'}, beginAtZero:true }
+      }
+    }
+  }));
+}
+
+function secToTime(s) {
+  if (!s && s!==0) return '—';
+  return Math.floor(s/3600).toString().padStart(2,'0')+':'+
+         Math.floor((s%3600)/60).toString().padStart(2,'0')+':'+
+         Math.floor(s%60).toString().padStart(2,'0');
+}
+
+loadAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOS Admin — Call Log</title>
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  
+<div class="admin-layout">
+<aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="page-title">Call Log</div>
+        <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Customer Interactions</div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn" onclick="loadCalls()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+        <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+        <div class="admin-chip">
+          <div class="admin-avatar" id="admin-avatar">KR</div>
+          <span class="admin-name" id="admin-name">Admin</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- KPI CARDS -->
+      <div class="kpi-grid fade-up" style="grid-template-columns:repeat(4,1fr);">
+        <div class="kpi-card blue">
+          <span class="kpi-icon">📞</span>
+          <div class="kpi-label">Total Calls</div>
+          <div class="kpi-value" id="k-total">—</div>
+        </div>
+        <div class="kpi-card gold">
+          <span class="kpi-icon">📅</span>
+          <div class="kpi-label">Today</div>
+          <div class="kpi-value" id="k-today">—</div>
+        </div>
+        <div class="kpi-card green">
+          <span class="kpi-icon">🏢</span>
+          <div class="kpi-label">Project Leads</div>
+          <div class="kpi-value" id="k-projects">—</div>
+        </div>
+        <div class="kpi-card purple">
+          <span class="kpi-icon">📊</span>
+          <div class="kpi-label">This Month</div>
+          <div class="kpi-value" id="k-month">—</div>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="section-card fade-up">
+        <div class="section-header">
+          <div class="section-title">
+            <i class="fas fa-phone-volume" style="color:var(--gold)"></i>
+            Call Log
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <!-- Search -->
+            <div class="search-wrap" style="min-width:220px;">
+              <i class="fas fa-search"></i>
+              <input type="text" class="search-input" id="search-input"
+                placeholder="Search name, mobile, reason..."
+                oninput="handleSearch(this.value)">
+            </div>
+            <!-- Date Filter -->
+            <input type="date" id="date-from" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
+            <input type="date" id="date-to"   class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
+            <select id="month-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="applyMonthFilter()">
+              <option value="">All Months</option>
+              <option value="01">January</option>
+              <option value="02">February</option>
+              <option value="03">March</option>
+              <option value="04">April</option>
+              <option value="05">May</option>
+              <option value="06">June</option>
+              <option value="07">July</option>
+              <option value="08">August</option>
+              <option value="09">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+            <select id="year-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="applyMonthFilter()">
+              <option value="">All Years</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
+            
+            <!-- Agent Filter -->
+            <select id="agent-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
+              <option value="">All Agents</option>
+            </select>
+            <!-- Reason Filter -->
+            <select id="reason-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
+              <option value="">All Reasons</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-body no-pad">
+          <div class="table-wrap">
+            <table class="nos-table">
+              <thead>
+                <tr>
+                  <th>Date/Time</th>
+                  <th>Customer</th>
+                  <th>Mobile</th>
+                  <th>Reason</th>
+                  <th>Agent</th>
+                  <th>Channel</th>
+                  <th>Media</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="calls-tbody">
+                <tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border);">
+            <span id="pagination-info" style="font-size:12px;color:var(--muted);"></span>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost btn-sm" id="prev-btn" onclick="prevPage()">
+                <i class="fas fa-chevron-left"></i> Prev
+              </button>
+              <button class="btn btn-ghost btn-sm" id="next-btn" onclick="nextPage()">
+                Next <i class="fas fa-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
+<div class="slide-panel" id="slide-panel">
+  <div class="panel-header">
+    <div class="panel-title" id="panel-title">Call Details</div>
+    <button class="panel-close" onclick="closePanel()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Confirm</div>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/supabase.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+renderSidebar();
+applyThemeIcon();
+const session = checkAuth();
+if (session) {
+  document.getElementById('admin-name').innerText = session.username || 'Admin';
+  document.getElementById('admin-avatar').innerText = initials(session.username || 'Admin');
+}
+
+const PAGE_SIZE = 50;
+let currentPage = 0;
+let totalCount  = 0;
+let searchQuery = '';
+let searchTimer = null;
+
+// ============================================================
+// DATE UTILITIES — Timezone-safe
+// ============================================================
+
+/** Returns today's date as YYYY-MM-DD in LOCAL timezone (not UTC) */
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/** Returns current month as YYYY-MM in LOCAL timezone */
+function localMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+/**
+ * Converts a local date string YYYY-MM-DD → UTC ISO at start of that local day
+ * Example (Cairo UTC+3): "2026-04-13" → "2026-04-12T21:00:00.000Z"
+ */
+function localDateToUTCStart(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+}
+
+/**
+ * Converts a local date string YYYY-MM-DD → UTC ISO at end of that local day
+ * Example (Cairo UTC+3): "2026-04-13" → "2026-04-13T20:59:59.999Z"
+ */
+function localDateToUTCEnd(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+}
+
+// Compute once at page load using LOCAL timezone
+const TODAY = localToday();
+const MONTH = localMonth();
+
+// ── Init ──
+async function init() {
+  // Set default dates (this month) — using local timezone values
+  document.getElementById('date-from').value = MONTH + '-01';
+  document.getElementById('date-to').value   = TODAY;
+
+  // Load agents for filter
+  const { data: agents } = await db.from('agents').select('formal_name').order('formal_name');
+  const agentSel = document.getElementById('agent-filter');
+  (agents||[]).forEach(a => agentSel.add(new Option(a.formal_name, a.formal_name)));
+
+  // Load reasons for filter
+  const { data: reasons } = await db.from('call_reasons').select('name').eq('is_active',true).order('name');
+  const reasonSel = document.getElementById('reason-filter');
+  (reasons||[]).forEach(r => reasonSel.add(new Option(r.name, r.name)));
+
+  await loadKPIs();
+  await loadCalls();
+}
+
+// ── KPIs ──
+async function loadKPIs() {
+  // Total — no date filter needed
+  const { count: total } = await db
+    .from('call_logs')
+    .select('*', { count: 'exact', head: true });
+
+  // Today — convert local midnight → UTC
+  const { count: today } = await db
+    .from('call_logs')
+    .select('*', { count: 'exact', head: true })
+    .gte('logged_at', localDateToUTCStart(TODAY))
+    .lte('logged_at', localDateToUTCEnd(TODAY));
+
+  // This month — first day of month to last moment of today
+  const { count: month } = await db
+    .from('call_logs')
+    .select('*', { count: 'exact', head: true })
+    .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
+    .lte('logged_at', localDateToUTCEnd(TODAY));
+
+  // Project leads this month
+  const { data: projReasons } = await db
+    .from('call_reasons')
+    .select('name')
+    .eq('category', 'Projects Leads');
+  const projNames = (projReasons||[]).map(r => r.name);
+
+  const { count: projects } = await db
+    .from('call_logs')
+    .select('*', { count: 'exact', head: true })
+    .in('call_reason', projNames)
+    .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
+    .lte('logged_at', localDateToUTCEnd(TODAY));
+
+  document.getElementById('k-total').innerText    = total    || 0;
+  document.getElementById('k-today').innerText    = today    || 0;
+  document.getElementById('k-month').innerText    = month    || 0;
+  document.getElementById('k-projects').innerText = projects || 0;
+}
+
+// ── Load Calls ──
+async function loadCalls() {
+  const tbody    = document.getElementById('calls-tbody');
+  const dateFrom = document.getElementById('date-from').value;
+  const dateTo   = document.getElementById('date-to').value;
+  const agent    = document.getElementById('agent-filter').value;
+  const reason   = document.getElementById('reason-filter').value;
+
+  tbody.innerHTML = `<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>`;
+
+  try {
+    let query = db.from('call_logs').select('*', { count: 'exact' });
+
+    // ✅ Use UTC-converted boundaries instead of raw date strings
+    if (dateFrom) query = query.gte('logged_at', localDateToUTCStart(dateFrom));
+    if (dateTo)   query = query.lte('logged_at', localDateToUTCEnd(dateTo));
+
+    if (agent)  query = query.ilike('agent_name', agent);
+    if (reason) query = query.eq('call_reason', reason);
+    if (searchQuery) {
+      query = query.or(
+        `customer_name.ilike.%${searchQuery}%,customer_mobile.ilike.%${searchQuery}%,call_reason.ilike.%${searchQuery}%`
+      );
+    }
+
+    const { data, count, error } = await query
+      .order('logged_at', { ascending: false })
+      .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    totalCount = count || 0;
+    updatePagination();
+
+    if (!data?.length) {
+      tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><span class="empty-icon">📞</span>No calls found</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map(c => `
+      <tr>
+        <td style="font-size:11px;color:var(--muted);white-space:nowrap;">${formatDateTime(c.logged_at)}</td>
+        <td style="font-weight:700;">${c.customer_name || '—'}</td>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">${c.customer_mobile || '—'}</td>
+        <td>
+          <span style="font-size:12px;font-weight:600;color:var(--text);">${c.call_reason || '—'}</span>
+        </td>
+        <td style="font-size:12px;">${c.agent_name || '—'}</td>
+        <td><span class="badge badge-info" style="font-size:10px;">${c.communication_channel || '—'}</span></td>
+        <td style="font-size:12px;color:var(--muted);">${c.media_source || '—'}</td>
+        <td>
+          <button class="btn btn-info btn-sm btn-icon" onclick="viewCall('${c.id}')" title="View">
+            <i class="fas fa-eye"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><span class="empty-icon">❌</span>Failed to load</div></td></tr>`;
+    showToast('Failed: ' + e.message, 'error');
+  }
+}
+
+// ── View Call Detail ──
+async function viewCall(id) {
+  const { data: c } = await db.from('call_logs').select('*').eq('id', id).single();
+  if (!c) return;
+
+  const fields = [
+    ['Customer Name',        c.customer_name],
+    ['Customer Mobile',      c.customer_mobile],
+    ['Alt Mobile',           c.customer_mobile2],
+    ['Email',                c.customer_email],
+    ['Call Reason',          c.call_reason],
+    ['Agent',                c.agent_name],
+    ['Channel',              c.communication_channel],
+    ['Media Source',         c.media_source],
+    ['Business Relativity',  c.business_relativity],
+    ['Sales Call Requested', c.sales_call_requested],
+    ['Budget',               c.budget],
+    ['Unit Type',            c.unit_type],
+    ['Date/Time',            formatDateTime(c.logged_at)],
+  ];
+
+  document.getElementById('panel-title').innerText = c.customer_name || 'Call Details';
+  document.getElementById('panel-body').innerHTML = `
+    <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:800;color:#3B82F6;">${c.call_reason || '—'}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${c.agent_name || '—'} · ${formatDateTime(c.logged_at)}</div>
+    </div>
+    ${fields.filter(([,v])=>v).map(([k,v])=>`
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">${k}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text);text-align:right;max-width:60%;">${v}</span>
+      </div>
+    `).join('')}
+    ${c.extra_notes ? `
+      <div style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:10px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;">Extra Notes</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6;">${c.extra_notes}</div>
+      </div>
+    ` : ''}
+  `;
+  document.getElementById('panel-footer').innerHTML = `<button class="btn btn-ghost" onclick="closePanel()">Close</button>`;
+  openPanel();
+}
+
+// ── Search ──
+function handleSearch(val) {
+  searchQuery = val;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { currentPage = 0; loadCalls(); }, 400);
+}
+
+// ── Pagination ──
+function updatePagination() {
+  const start = currentPage * PAGE_SIZE + 1;
+  const end   = Math.min((currentPage + 1) * PAGE_SIZE, totalCount);
+  document.getElementById('pagination-info').innerText = `Showing ${start}–${end} of ${totalCount}`;
+  document.getElementById('prev-btn').disabled = currentPage === 0;
+  document.getElementById('next-btn').disabled = end >= totalCount;
+}
+
+function prevPage() { if (currentPage > 0) { currentPage--; loadCalls(); } }
+function nextPage() { currentPage++; loadCalls(); }
+
+// ── Month/Year Filter ──
+function applyMonthFilter() {
+  const month = document.getElementById('month-filter').value;
+  const year  = document.getElementById('year-filter').value;
+
+  if (month && year) {
+    const lastDay = new Date(year, month, 0).getDate();
+    document.getElementById('date-from').value = `${year}-${month}-01`;
+    document.getElementById('date-to').value   = `${year}-${month}-${String(lastDay).padStart(2,'0')}`;
+  } else if (year && !month) {
+    document.getElementById('date-from').value = `${year}-01-01`;
+    document.getElementById('date-to').value   = `${year}-12-31`;
+  } else {
+    document.getElementById('date-from').value = '';
+    document.getElementById('date-to').value   = '';
+  }
+
+  currentPage = 0;
+  loadCalls();
+}
+
+// ── Helpers ──
+function formatDateTime(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) + ' ' +
+         dt.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+}
+
+function openModal(title, msg, onConfirm) {
+  document.getElementById('modal-title').innerText = title;
+  document.getElementById('modal-msg').innerText   = msg;
+  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('modal-confirm').onclick = () => { closeModal(); onConfirm(); };
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+init();
+</script>
+</body>
+</html>
