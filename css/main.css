@@ -685,3 +685,24 @@ textarea.form-input { resize: vertical; min-height: 80px; }
   .form-grid-3 { grid-template-columns: 1fr; }
   .slide-panel { width: 100%; }
 }
+/* ══════════════════════════════════════
+   LIST ITEMS
+══════════════════════════════════════ */
+.list-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+.list-item:last-child { border-bottom: none; }
+.list-item:hover { background: var(--table-hover); }
+
+.list-info { flex: 1; min-width: 0; }
+.list-title {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.list-sub {
+  font-size: 11px; color: var(--muted); margin-top: 3px;
+}
+.list-action { flex-shrink: 0; margin-left: 12px; }
