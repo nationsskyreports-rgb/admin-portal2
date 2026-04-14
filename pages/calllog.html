@@ -19,7 +19,7 @@
         <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Customer Interactions</div>
       </div>
       <div class="topbar-right">
-        <button class="topbar-btn" onclick="loadCalls()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+        <button class="topbar-btn" onclick="loadAll()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
         <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fas fa-moon"></i></button>
         <div class="admin-chip">
           <div class="admin-avatar" id="admin-avatar">KR</div>
@@ -70,8 +70,8 @@
                 oninput="handleSearch(this.value)">
             </div>
             <!-- Date Filter -->
-            <input type="date" id="date-from" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
-            <input type="date" id="date-to"   class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
+            <input type="date" id="date-from" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
+            <input type="date" id="date-to"   class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
             <select id="month-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="applyMonthFilter()">
               <option value="">All Months</option>
               <option value="01">January</option>
@@ -94,11 +94,11 @@
             </select>
             
             <!-- Agent Filter -->
-            <select id="agent-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
+            <select id="agent-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
               <option value="">All Agents</option>
             </select>
             <!-- Reason Filter -->
-            <select id="reason-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCalls()">
+            <select id="reason-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
               <option value="">All Reasons</option>
             </select>
           </div>
@@ -190,132 +190,152 @@ let searchQuery = '';
 let searchTimer = null;
 
 // ============================================================
-// DATE UTILITIES — Timezone-safe
+// DATE UTILITIES
 // ============================================================
-
-/** Returns today's date as YYYY-MM-DD in LOCAL timezone (not UTC) */
 function localToday() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-
-/** Returns current month as YYYY-MM in LOCAL timezone */
 function localMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
-
-/**
- * Converts a local date string YYYY-MM-DD → UTC ISO at start of that local day
- * Example (Cairo UTC+3): "2026-04-13" → "2026-04-12T21:00:00.000Z"
- */
 function localDateToUTCStart(dateStr) {
   if (!dateStr) return null;
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
 }
-
-/**
- * Converts a local date string YYYY-MM-DD → UTC ISO at end of that local day
- * Example (Cairo UTC+3): "2026-04-13" → "2026-04-13T20:59:59.999Z"
- */
 function localDateToUTCEnd(dateStr) {
   if (!dateStr) return null;
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
 }
 
-// Compute once at page load using LOCAL timezone
 const TODAY = localToday();
 const MONTH = localMonth();
 
+// ============================================================
+// GET CURRENT FILTERS — helper مشترك
+// ============================================================
+function getFilters() {
+  return {
+    dateFrom : document.getElementById('date-from').value,
+    dateTo   : document.getElementById('date-to').value,
+    agent    : document.getElementById('agent-filter').value,
+    reason   : document.getElementById('reason-filter').value,
+    search   : searchQuery
+  };
+}
+
+// ── Build base query with all active filters ──
+function buildQuery(f) {
+  let q = db.from('call_logs').select('*', { count: 'exact' });
+  if (f.dateFrom) q = q.gte('logged_at', localDateToUTCStart(f.dateFrom));
+  if (f.dateTo)   q = q.lte('logged_at', localDateToUTCEnd(f.dateTo));
+  if (f.agent)    q = q.ilike('agent_name', f.agent);
+  if (f.reason)   q = q.eq('call_reason', f.reason);
+  if (f.search)   q = q.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
+  return q;
+}
+
 // ── Init ──
 async function init() {
-  // Set default dates (this month) — using local timezone values
   document.getElementById('date-from').value = MONTH + '-01';
   document.getElementById('date-to').value   = TODAY;
 
-  // Load agents for filter
   const { data: agents } = await db.from('agents').select('formal_name').order('formal_name');
   const agentSel = document.getElementById('agent-filter');
   (agents||[]).forEach(a => agentSel.add(new Option(a.formal_name, a.formal_name)));
 
-  // Load reasons for filter
   const { data: reasons } = await db.from('call_reasons').select('name').eq('is_active',true).order('name');
   const reasonSel = document.getElementById('reason-filter');
   (reasons||[]).forEach(r => reasonSel.add(new Option(r.name, r.name)));
 
-  await loadKPIs();
-  await loadCalls();
+  await loadAll();
 }
 
-// ── KPIs ──
+// ── Load All (KPIs + Table) ──
+async function loadAll() {
+  currentPage = 0;
+  await Promise.all([loadKPIs(), loadCalls()]);
+}
+
+// ── KPIs — بتاخد الـ filters الحالية ──
 async function loadKPIs() {
-  // Total — no date filter needed
-  const { count: total } = await db
-    .from('call_logs')
-    .select('*', { count: 'exact', head: true });
+  const f = getFilters();
 
-  // Today — convert local midnight → UTC
-  const { count: today } = await db
-    .from('call_logs')
-    .select('*', { count: 'exact', head: true })
-    .gte('logged_at', localDateToUTCStart(TODAY))
-    .lte('logged_at', localDateToUTCEnd(TODAY));
+  // Set KPIs to loading
+  ['k-total','k-today','k-month','k-projects'].forEach(id => {
+    document.getElementById(id).innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div>';
+  });
 
-  // This month — first day of month to last moment of today
-  const { count: month } = await db
-    .from('call_logs')
-    .select('*', { count: 'exact', head: true })
-    .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
-    .lte('logged_at', localDateToUTCEnd(TODAY));
+  try {
+    // Total — بالـ filters الحالية بس بدون date filter
+    const baseQ = db.from('call_logs').select('*', { count: 'exact', head: true });
+    let totalQ = baseQ;
+    if (f.agent)  totalQ = db.from('call_logs').select('*', { count: 'exact', head: true }).ilike('agent_name', f.agent);
+    if (f.reason) totalQ = (f.agent ? totalQ : db.from('call_logs').select('*', { count: 'exact', head: true })).eq('call_reason', f.reason);
+    // اعمل total بالـ reason والـ agent بس بدون date
+    let tQ = db.from('call_logs').select('*', { count: 'exact', head: true });
+    if (f.agent)  tQ = tQ.ilike('agent_name', f.agent);
+    if (f.reason) tQ = tQ.eq('call_reason', f.reason);
+    if (f.search) tQ = tQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
+    const { count: total } = await tQ;
 
-  // Project leads this month
-  const { data: projReasons } = await db
-    .from('call_reasons')
-    .select('name')
-    .eq('category', 'Projects Leads');
-  const projNames = (projReasons||[]).map(r => r.name);
+    // Today — بالـ filters + تاريخ النهارده
+    let todayQ = db.from('call_logs').select('*', { count: 'exact', head: true })
+      .gte('logged_at', localDateToUTCStart(TODAY))
+      .lte('logged_at', localDateToUTCEnd(TODAY));
+    if (f.agent)  todayQ = todayQ.ilike('agent_name', f.agent);
+    if (f.reason) todayQ = todayQ.eq('call_reason', f.reason);
+    if (f.search) todayQ = todayQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
+    const { count: today } = await todayQ;
 
-  const { count: projects } = await db
-    .from('call_logs')
-    .select('*', { count: 'exact', head: true })
-    .in('call_reason', projNames)
-    .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
-    .lte('logged_at', localDateToUTCEnd(TODAY));
+    // This Month — بالـ filters + الشهر الحالي
+    let monthQ = db.from('call_logs').select('*', { count: 'exact', head: true })
+      .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
+      .lte('logged_at', localDateToUTCEnd(TODAY));
+    if (f.agent)  monthQ = monthQ.ilike('agent_name', f.agent);
+    if (f.reason) monthQ = monthQ.eq('call_reason', f.reason);
+    if (f.search) monthQ = monthQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
+    const { count: month } = await monthQ;
 
-  document.getElementById('k-total').innerText    = total    || 0;
-  document.getElementById('k-today').innerText    = today    || 0;
-  document.getElementById('k-month').innerText    = month    || 0;
-  document.getElementById('k-projects').innerText = projects || 0;
+    // Project Leads — بالـ filters + reasons من category Projects Leads
+    const { data: projReasons } = await db.from('call_reasons').select('name').eq('category', 'Projects Leads');
+    const projNames = (projReasons||[]).map(r => r.name);
+    let projQ = db.from('call_logs').select('*', { count: 'exact', head: true })
+      .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
+      .lte('logged_at', localDateToUTCEnd(TODAY));
+    if (f.agent) projQ = projQ.ilike('agent_name', f.agent);
+    // لو في reason filter، استخدمها بدل كل الـ project reasons
+    if (f.reason) {
+      projQ = projQ.eq('call_reason', f.reason);
+    } else {
+      if (projNames.length) projQ = projQ.in('call_reason', projNames);
+    }
+    if (f.search) projQ = projQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
+    const { count: projects } = await projQ;
+
+    document.getElementById('k-total').innerText    = total    ?? 0;
+    document.getElementById('k-today').innerText    = today    ?? 0;
+    document.getElementById('k-month').innerText    = month    ?? 0;
+    document.getElementById('k-projects').innerText = projects ?? 0;
+
+  } catch(e) {
+    ['k-total','k-today','k-month','k-projects'].forEach(id => {
+      document.getElementById(id).innerText = '—';
+    });
+  }
 }
 
-// ── Load Calls ──
+// ── Load Calls Table ──
 async function loadCalls() {
-  const tbody    = document.getElementById('calls-tbody');
-  const dateFrom = document.getElementById('date-from').value;
-  const dateTo   = document.getElementById('date-to').value;
-  const agent    = document.getElementById('agent-filter').value;
-  const reason   = document.getElementById('reason-filter').value;
-
+  const tbody = document.getElementById('calls-tbody');
   tbody.innerHTML = `<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>`;
 
   try {
-    let query = db.from('call_logs').select('*', { count: 'exact' });
-
-    // ✅ Use UTC-converted boundaries instead of raw date strings
-    if (dateFrom) query = query.gte('logged_at', localDateToUTCStart(dateFrom));
-    if (dateTo)   query = query.lte('logged_at', localDateToUTCEnd(dateTo));
-
-    if (agent)  query = query.ilike('agent_name', agent);
-    if (reason) query = query.eq('call_reason', reason);
-    if (searchQuery) {
-      query = query.or(
-        `customer_name.ilike.%${searchQuery}%,customer_mobile.ilike.%${searchQuery}%,call_reason.ilike.%${searchQuery}%`
-      );
-    }
-
-    const { data, count, error } = await query
+    const f = getFilters();
+    const { data, count, error } = await buildQuery(f)
       .order('logged_at', { ascending: false })
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
@@ -334,9 +354,7 @@ async function loadCalls() {
         <td style="font-size:11px;color:var(--muted);white-space:nowrap;">${formatDateTime(c.logged_at)}</td>
         <td style="font-weight:700;">${c.customer_name || '—'}</td>
         <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">${c.customer_mobile || '—'}</td>
-        <td>
-          <span style="font-size:12px;font-weight:600;color:var(--text);">${c.call_reason || '—'}</span>
-        </td>
+        <td><span style="font-size:12px;font-weight:600;color:var(--text);">${c.call_reason || '—'}</span></td>
         <td style="font-size:12px;">${c.agent_name || '—'}</td>
         <td><span class="badge badge-info" style="font-size:10px;">${c.communication_channel || '—'}</span></td>
         <td style="font-size:12px;color:var(--muted);">${c.media_source || '—'}</td>
@@ -402,14 +420,14 @@ async function viewCall(id) {
 function handleSearch(val) {
   searchQuery = val;
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => { currentPage = 0; loadCalls(); }, 400);
+  searchTimer = setTimeout(() => { currentPage = 0; loadAll(); }, 400);
 }
 
 // ── Pagination ──
 function updatePagination() {
   const start = currentPage * PAGE_SIZE + 1;
   const end   = Math.min((currentPage + 1) * PAGE_SIZE, totalCount);
-  document.getElementById('pagination-info').innerText = `Showing ${start}–${end} of ${totalCount}`;
+  document.getElementById('pagination-info').innerText = totalCount ? `Showing ${start}–${end} of ${totalCount}` : 'No results';
   document.getElementById('prev-btn').disabled = currentPage === 0;
   document.getElementById('next-btn').disabled = end >= totalCount;
 }
@@ -421,7 +439,6 @@ function nextPage() { currentPage++; loadCalls(); }
 function applyMonthFilter() {
   const month = document.getElementById('month-filter').value;
   const year  = document.getElementById('year-filter').value;
-
   if (month && year) {
     const lastDay = new Date(year, month, 0).getDate();
     document.getElementById('date-from').value = `${year}-${month}-01`;
@@ -433,9 +450,7 @@ function applyMonthFilter() {
     document.getElementById('date-from').value = '';
     document.getElementById('date-to').value   = '';
   }
-
-  currentPage = 0;
-  loadCalls();
+  loadAll();
 }
 
 // ── Helpers ──
