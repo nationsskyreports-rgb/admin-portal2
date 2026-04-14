@@ -225,7 +225,7 @@ let scheduleData  = {};
 let unsaved       = false;
 let draftRequests = {};
 
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = getToday();
 
 const MORNING_EMOJI = '🟢';
 const SHIFT_PALETTE = ['🔵','🟠','🟣','🔴','🟡','🩵','🟤','⚫'];
