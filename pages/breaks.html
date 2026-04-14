@@ -229,7 +229,7 @@ let editRows      = {};
 let workingAgents = [];
 let _lastSchedules = []; // نحتفظ بالـ schedules عشان نبني الـ timeline
 
-document.getElementById('date-picker').value = new Date().toISOString().split('T')[0];
+document.getElementById('date-picker').value = getToday();
 
 async function init() {
   const [agentsRes, shiftsRes] = await Promise.all([
@@ -523,7 +523,7 @@ async function loadWeeklyBreaks() {
   const start=opt.dataset.start, end=opt.dataset.end;
   document.getElementById('week-dates-label').innerText=formatDateShort(start)+' → '+formatDateShort(end);
   gridEl.innerHTML='<div class="loading-wrap"><div class="spinner"></div></div>';
-  const todayIso=new Date().toISOString().split('T')[0];
+  const todayIso=getToday();
 
   try {
     const dates=getWeekDates(start,end);
