@@ -62,14 +62,12 @@
             Call Log
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-            <!-- Search -->
             <div class="search-wrap" style="min-width:220px;">
               <i class="fas fa-search"></i>
               <input type="text" class="search-input" id="search-input"
                 placeholder="Search name, mobile, reason..."
                 oninput="handleSearch(this.value)">
             </div>
-            <!-- Date Filter -->
             <input type="date" id="date-from" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
             <input type="date" id="date-to"   class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
             <select id="month-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="applyMonthFilter()">
@@ -92,12 +90,9 @@
               <option value="2025">2025</option>
               <option value="2026">2026</option>
             </select>
-            
-            <!-- Agent Filter -->
             <select id="agent-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
               <option value="">All Agents</option>
             </select>
-            <!-- Reason Filter -->
             <select id="reason-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
               <option value="">All Reasons</option>
             </select>
@@ -124,7 +119,6 @@
               </tbody>
             </table>
           </div>
-          <!-- Pagination -->
           <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border);">
             <span id="pagination-info" style="font-size:12px;color:var(--muted);"></span>
             <div style="display:flex;gap:8px;">
@@ -189,9 +183,7 @@ let totalCount  = 0;
 let searchQuery = '';
 let searchTimer = null;
 
-// ============================================================
-// DATE UTILITIES
-// ============================================================
+// ── Date Utilities ──
 function localToday() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -214,27 +206,24 @@ function localDateToUTCEnd(dateStr) {
 const TODAY = localToday();
 const MONTH = localMonth();
 
-// ============================================================
-// GET CURRENT FILTERS — helper مشترك
-// ============================================================
+// ── Get current filter values ──
 function getFilters() {
   return {
-    dateFrom : document.getElementById('date-from').value,
-    dateTo   : document.getElementById('date-to').value,
-    agent    : document.getElementById('agent-filter').value,
-    reason   : document.getElementById('reason-filter').value,
-    search   : searchQuery
+    dateFrom: document.getElementById('date-from').value,
+    dateTo:   document.getElementById('date-to').value,
+    agent:    document.getElementById('agent-filter').value,
+    reason:   document.getElementById('reason-filter').value,
   };
 }
 
 // ── Build base query with all active filters ──
-function buildQuery(f) {
-  let q = db.from('call_logs').select('*', { count: 'exact' });
-  if (f.dateFrom) q = q.gte('logged_at', localDateToUTCStart(f.dateFrom));
-  if (f.dateTo)   q = q.lte('logged_at', localDateToUTCEnd(f.dateTo));
-  if (f.agent)    q = q.ilike('agent_name', f.agent);
-  if (f.reason)   q = q.eq('call_reason', f.reason);
-  if (f.search)   q = q.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
+function buildQuery(table, filters) {
+  let q = db.from(table).select('*', { count: 'exact', head: true });
+  if (filters.dateFrom) q = q.gte('logged_at', localDateToUTCStart(filters.dateFrom));
+  if (filters.dateTo)   q = q.lte('logged_at', localDateToUTCEnd(filters.dateTo));
+  if (filters.agent)    q = q.ilike('agent_name', filters.agent);
+  if (filters.reason)   q = q.eq('call_reason', filters.reason);
+  if (searchQuery)      q = q.or(`customer_name.ilike.%${searchQuery}%,customer_mobile.ilike.%${searchQuery}%,call_reason.ilike.%${searchQuery}%`);
   return q;
 }
 
@@ -254,88 +243,85 @@ async function init() {
   await loadAll();
 }
 
-// ── Load All (KPIs + Table) ──
+// ── Load All (KPIs + Table together) ──
 async function loadAll() {
-  currentPage = 0;
   await Promise.all([loadKPIs(), loadCalls()]);
 }
 
-// ── KPIs — بتاخد الـ filters الحالية ──
+// ── KPIs — now respects all active filters ──
 async function loadKPIs() {
   const f = getFilters();
 
-  // Set KPIs to loading
-  ['k-total','k-today','k-month','k-projects'].forEach(id => {
-    document.getElementById(id).innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div>';
-  });
+  // Total — with all active filters
+  const { count: total } = await buildQuery('call_logs', f);
 
-  try {
-    // Total — بالـ filters الحالية بس بدون date filter
-    const baseQ = db.from('call_logs').select('*', { count: 'exact', head: true });
-    let totalQ = baseQ;
-    if (f.agent)  totalQ = db.from('call_logs').select('*', { count: 'exact', head: true }).ilike('agent_name', f.agent);
-    if (f.reason) totalQ = (f.agent ? totalQ : db.from('call_logs').select('*', { count: 'exact', head: true })).eq('call_reason', f.reason);
-    // اعمل total بالـ reason والـ agent بس بدون date
-    let tQ = db.from('call_logs').select('*', { count: 'exact', head: true });
-    if (f.agent)  tQ = tQ.ilike('agent_name', f.agent);
-    if (f.reason) tQ = tQ.eq('call_reason', f.reason);
-    if (f.search) tQ = tQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
-    const { count: total } = await tQ;
+  // Today — override dates to today only, keep other filters
+  let todayQ = db.from('call_logs').select('*', { count: 'exact', head: true })
+    .gte('logged_at', localDateToUTCStart(TODAY))
+    .lte('logged_at', localDateToUTCEnd(TODAY));
+  if (f.agent)  todayQ = todayQ.ilike('agent_name', f.agent);
+  if (f.reason) todayQ = todayQ.eq('call_reason', f.reason);
+  if (searchQuery) todayQ = todayQ.or(`customer_name.ilike.%${searchQuery}%,customer_mobile.ilike.%${searchQuery}%,call_reason.ilike.%${searchQuery}%`);
+  const { count: today } = await todayQ;
 
-    // Today — بالـ filters + تاريخ النهارده
-    let todayQ = db.from('call_logs').select('*', { count: 'exact', head: true })
-      .gte('logged_at', localDateToUTCStart(TODAY))
-      .lte('logged_at', localDateToUTCEnd(TODAY));
-    if (f.agent)  todayQ = todayQ.ilike('agent_name', f.agent);
-    if (f.reason) todayQ = todayQ.eq('call_reason', f.reason);
-    if (f.search) todayQ = todayQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
-    const { count: today } = await todayQ;
+  // This Month — override dates to this month, keep other filters
+  let monthQ = db.from('call_logs').select('*', { count: 'exact', head: true })
+    .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
+    .lte('logged_at', localDateToUTCEnd(TODAY));
+  if (f.agent)  monthQ = monthQ.ilike('agent_name', f.agent);
+  if (f.reason) monthQ = monthQ.eq('call_reason', f.reason);
+  if (searchQuery) monthQ = monthQ.or(`customer_name.ilike.%${searchQuery}%,customer_mobile.ilike.%${searchQuery}%,call_reason.ilike.%${searchQuery}%`);
+  const { count: month } = await monthQ;
 
-    // This Month — بالـ filters + الشهر الحالي
-    let monthQ = db.from('call_logs').select('*', { count: 'exact', head: true })
-      .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
-      .lte('logged_at', localDateToUTCEnd(TODAY));
-    if (f.agent)  monthQ = monthQ.ilike('agent_name', f.agent);
-    if (f.reason) monthQ = monthQ.eq('call_reason', f.reason);
-    if (f.search) monthQ = monthQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
-    const { count: month } = await monthQ;
+  // Project Leads — with active filters + project reasons
+  const { data: projReasons } = await db.from('call_reasons').select('name').eq('category', 'Projects Leads');
+  const projNames = (projReasons||[]).map(r => r.name);
 
-    // Project Leads — بالـ filters + reasons من category Projects Leads
-    const { data: projReasons } = await db.from('call_reasons').select('name').eq('category', 'Projects Leads');
-    const projNames = (projReasons||[]).map(r => r.name);
-    let projQ = db.from('call_logs').select('*', { count: 'exact', head: true })
-      .gte('logged_at', localDateToUTCStart(MONTH + '-01'))
-      .lte('logged_at', localDateToUTCEnd(TODAY));
-    if (f.agent) projQ = projQ.ilike('agent_name', f.agent);
-    // لو في reason filter، استخدمها بدل كل الـ project reasons
-    if (f.reason) {
+  let projQ = db.from('call_logs').select('*', { count: 'exact', head: true });
+  if (f.dateFrom) projQ = projQ.gte('logged_at', localDateToUTCStart(f.dateFrom));
+  if (f.dateTo)   projQ = projQ.lte('logged_at', localDateToUTCEnd(f.dateTo));
+  if (f.agent)    projQ = projQ.ilike('agent_name', f.agent);
+  // If reason filter is active, show 0 for project leads if it's not a project reason
+  if (f.reason) {
+    if (projNames.includes(f.reason)) {
       projQ = projQ.eq('call_reason', f.reason);
     } else {
-      if (projNames.length) projQ = projQ.in('call_reason', projNames);
+      document.getElementById('k-projects').innerText = 0;
+      document.getElementById('k-total').innerText    = total    || 0;
+      document.getElementById('k-today').innerText    = today    || 0;
+      document.getElementById('k-month').innerText    = month    || 0;
+      return;
     }
-    if (f.search) projQ = projQ.or(`customer_name.ilike.%${f.search}%,customer_mobile.ilike.%${f.search}%,call_reason.ilike.%${f.search}%`);
-    const { count: projects } = await projQ;
-
-    document.getElementById('k-total').innerText    = total    ?? 0;
-    document.getElementById('k-today').innerText    = today    ?? 0;
-    document.getElementById('k-month').innerText    = month    ?? 0;
-    document.getElementById('k-projects').innerText = projects ?? 0;
-
-  } catch(e) {
-    ['k-total','k-today','k-month','k-projects'].forEach(id => {
-      document.getElementById(id).innerText = '—';
-    });
+  } else {
+    if (projNames.length) projQ = projQ.in('call_reason', projNames);
   }
+  const { count: projects } = await projQ;
+
+  document.getElementById('k-total').innerText    = total    || 0;
+  document.getElementById('k-today').innerText    = today    || 0;
+  document.getElementById('k-month').innerText    = month    || 0;
+  document.getElementById('k-projects').innerText = projects || 0;
 }
 
-// ── Load Calls Table ──
+// ── Load Calls ──
 async function loadCalls() {
   const tbody = document.getElementById('calls-tbody');
+  const f     = getFilters();
+
   tbody.innerHTML = `<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>`;
 
   try {
-    const f = getFilters();
-    const { data, count, error } = await buildQuery(f)
+    let query = db.from('call_logs').select('*', { count: 'exact' });
+
+    if (f.dateFrom) query = query.gte('logged_at', localDateToUTCStart(f.dateFrom));
+    if (f.dateTo)   query = query.lte('logged_at', localDateToUTCEnd(f.dateTo));
+    if (f.agent)    query = query.ilike('agent_name', f.agent);
+    if (f.reason)   query = query.eq('call_reason', f.reason);
+    if (searchQuery) {
+      query = query.or(`customer_name.ilike.%${searchQuery}%,customer_mobile.ilike.%${searchQuery}%,call_reason.ilike.%${searchQuery}%`);
+    }
+
+    const { data, count, error } = await query
       .order('logged_at', { ascending: false })
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
@@ -427,7 +413,7 @@ function handleSearch(val) {
 function updatePagination() {
   const start = currentPage * PAGE_SIZE + 1;
   const end   = Math.min((currentPage + 1) * PAGE_SIZE, totalCount);
-  document.getElementById('pagination-info').innerText = totalCount ? `Showing ${start}–${end} of ${totalCount}` : 'No results';
+  document.getElementById('pagination-info').innerText = totalCount ? `Showing ${start}–${end} of ${totalCount}` : '';
   document.getElementById('prev-btn').disabled = currentPage === 0;
   document.getElementById('next-btn').disabled = end >= totalCount;
 }
@@ -439,6 +425,7 @@ function nextPage() { currentPage++; loadCalls(); }
 function applyMonthFilter() {
   const month = document.getElementById('month-filter').value;
   const year  = document.getElementById('year-filter').value;
+
   if (month && year) {
     const lastDay = new Date(year, month, 0).getDate();
     document.getElementById('date-from').value = `${year}-${month}-01`;
@@ -450,6 +437,8 @@ function applyMonthFilter() {
     document.getElementById('date-from').value = '';
     document.getElementById('date-to').value   = '';
   }
+
+  currentPage = 0;
   loadAll();
 }
 
@@ -461,12 +450,6 @@ function formatDateTime(d) {
          dt.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
 }
 
-function openModal(title, msg, onConfirm) {
-  document.getElementById('modal-title').innerText = title;
-  document.getElementById('modal-msg').innerText   = msg;
-  document.getElementById('modal-overlay').classList.add('open');
-  document.getElementById('modal-confirm').onclick = () => { closeModal(); onConfirm(); };
-}
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 
 init();
