@@ -306,7 +306,7 @@ async function loadRecentRequests() {
   list.innerHTML = '<div class="p-20 center muted">Loading...</div>';
   try {
     const { data } = await db.from('requests')
-      .select('*, agents(formal_name), shift_types(name, start_time, end_time)')
+      .select('id, agent_name, type, status, created_at')
       .eq('status', 'Pending')
       .order('created_at', { ascending: false })
       .limit(5);
@@ -320,7 +320,7 @@ async function loadRecentRequests() {
       <div class="list-item">
         <div class="list-info">
           <div class="list-title">${r.agent_name || "Unknown"}</div>
-          <div class="list-sub">${r.request_type} • ${r.start_date}</div>
+          <div class="list-sub">${r.type} • ${r.created_at?.slice(0,10)}</div>
         </div>
         <div class="list-action">
           <a href="pages/requests.html" class="btn btn-ghost btn-sm">Review</a>
@@ -337,7 +337,7 @@ async function loadTodaySchedule() {
   try {
     const today = getToday();
     const { data } = await db.from('schedule')
-      .select('*, agents(formal_name), shift_types(name, start_time, end_time)')
+      .select('id, agent_name, type, status, created_at')
       .eq('shift_date', today)
       .eq('day_type', 'Work')
       .limit(5);
