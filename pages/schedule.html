@@ -403,8 +403,13 @@ async function loadScheduleGrid() {
   allShiftTypes.forEach(st => getShiftEmoji(st.start_time));
   const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
   let html = `<table class="sched-table"><thead><tr><th class="agent-col">Agent</th>`;
-  dates.forEach(d => { ... });
-  html += `<th style="min-width:55px;text-align:center;">Off</th>`; 
+
+  dates.forEach(d => {
+  const isToday = d.iso === TODAY;
+  html += `<th><div class="day-header"><span class="day-name ${isToday?'day-today':''}">${d.dayName}</span><span class="day-date ${isToday?'day-today':''}">${d.display}</span></div></th>`;
+});
+html += `<th style="min-width:55px;text-align:center;">Off</th>`;
+  
   dates.forEach(d => {
     const isToday = d.iso === TODAY;
     html += `<th><div class="day-header"><span class="day-name ${isToday?'day-today':''}">${d.dayName}</span><span class="day-date ${isToday?'day-today':''}">${d.display}</span></div></th>`;
