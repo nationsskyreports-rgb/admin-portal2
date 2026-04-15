@@ -319,7 +319,7 @@ async function loadRecentRequests() {
     list.innerHTML = data.map(r => `
       <div class="list-item">
         <div class="list-info">
-          <div class="list-title">${r.agents?.formal_name || 'Unknown'}</div>
+          <div class="list-title">${r.agent_name || "Unknown"}</div>
           <div class="list-sub">${r.request_type} • ${r.start_date}</div>
         </div>
         <div class="list-action">
@@ -383,7 +383,7 @@ async function loadRecentCalls() {
           <div class="list-sub">${c.call_reason} • ${new Date(c.logged_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
         </div>
         <div class="list-action">
-          <span class="badge badge-gold">${c.call_type}</span>
+          <span class="badge badge-gold">${c.communication_channel || "-"}</span>
         </div>
       </div>
     `).join('');
