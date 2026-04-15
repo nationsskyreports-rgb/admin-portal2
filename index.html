@@ -197,7 +197,7 @@ async function loadAll() {
 async function loadKPIs() {
   try {
     const today = getToday();
-    const month = new Date().toISOString().slice(0, 7);
+    const month = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }).slice(0, 7);
 
     // Total Agents
     const { data: agents } = await db.from('agents').select('id, status');
@@ -335,7 +335,7 @@ async function loadTodaySchedule() {
   const list = document.getElementById('today-schedule');
   list.innerHTML = '<div class="p-20 center muted">Loading...</div>';
   try {
-    const today = getToday();
+    const today = new Date().toISOString().split('T')[0];
     const { data } = await db.from('schedule')
       .select('*, agents(formal_name)')
       .eq('shift_date', today)
@@ -351,7 +351,7 @@ async function loadTodaySchedule() {
       <div class="list-item">
         <div class="list-info">
           <div class="list-title">${s.agents?.formal_name || 'Unknown'}</div>
-          <div class="list-sub">${s.shift_start} - ${s.shift_end}</div>
+          <div class="list-sub">${s.day_type}</div>
         </div>
         <div class="list-action">
           <span class="badge badge-green">On Duty</span>
@@ -367,7 +367,7 @@ async function loadRecentCalls() {
   list.innerHTML = '<div class="p-20 center muted">Loading...</div>';
   try {
     const { data } = await db.from('call_logs')
-      .select('agent_name, call_reason, call_type, logged_at')
+      .select('*')
       .order('logged_at', { ascending: false })
       .limit(5);
 
