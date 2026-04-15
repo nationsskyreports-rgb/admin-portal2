@@ -33,7 +33,7 @@
   outline:none; cursor:pointer; transition:all 0.2s; text-align:center;
 }
 .shift-select:focus { border-color:var(--gold); background:var(--surface3); }
-.shift-select.is-off              { color:var(--muted); }
+.shift-select.is-off              { color:#EF4444; border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.05); }
 .shift-select.is-work             { color:#10B981; border-color:rgba(16,185,129,0.3); background:rgba(16,185,129,0.05); }
 .shift-select.is-annual           { color:#8B5CF6; border-color:rgba(139,92,246,0.3); background:rgba(139,92,246,0.05); }
 .shift-select.is-sick             { color:#EF4444; border-color:rgba(239,68,68,0.3);  background:rgba(239,68,68,0.05); }
@@ -405,6 +405,7 @@ async function loadScheduleGrid() {
   const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
 
   let html = `<table class="sched-table"><thead><tr><th class="agent-col">Agent</th>`;
+  html += `<th style="min-width:55px;text-align:center;">Off</th>`;
   dates.forEach(d => {
     const isToday = d.iso === TODAY;
     html += `<th><div class="day-header"><span class="day-name ${isToday?'day-today':''}">${d.dayName}</span><span class="day-date ${isToday?'day-today':''}">${d.display}</span></div></th>`;
@@ -434,14 +435,42 @@ async function loadScheduleGrid() {
         ${hasReq ? `<div style="font-size:9px;color:#10B981;font-weight:700;margin-top:2px;text-align:center;">← ${reqLabel}</div>` : ''}
       </td>`;
     });
+const offCount = dates.filter(d => {
+  const entry = scheduleData[`${agent.id}_${d.iso}`];
+  return !entry || entry.day_type === 'Off';
+}).length;
+html += `<td style="text-align:center;font-weight:800;color:#EF4444;font-size:15px;background:var(--surface2);">${offCount}</td>`;
     html += `</tr>`;
   });
 
   html += `<tr style="background:var(--surface2);"><td class="agent-col" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px 12px;">Daily Count</td>`;
   dates.forEach(d => {
-    const working = Object.entries(scheduleData).filter(([k,v]) => k.endsWith('_'+d.iso) && v.day_type==='Work').length;
-    html += `<td style="text-align:center;padding:8px 4px;"><span style="color:#10B981;font-weight:800;font-size:13px;">${working}</span><span style="color:var(--muted);font-size:10px;"> working</span></td>`;
+
+const dayEntries = Object.entries(scheduleData).filter(([k]) => k.endsWith('_'+d.iso));
+const working = dayEntries.filter(([,v]) => v.day_type==='Work').length;
+const shiftCounts = {};
+dayEntries.filter(([,v]) => v.day_type==='Work' && v.shift_type_id).forEach(([,v]) => {
+  const st = allShiftTypes.find(s => s.id === v.shift_type_id);
+  if (st) {
+    const label = st.start_time.substring(0,5);
+    shiftCounts[label] = (shiftCounts[label] || 0) + 1;
+  }
+});
+
+const shiftBreakdown = Object.entries(shiftCounts)
+  .sort()
+  .map(([time, cnt]) => `<div style="font-size:9px;color:var(--muted);">${time}: <b style="color:var(--text)">${cnt}</b></div>`)
+  .join('');
+
+html += `<td style="text-align:center;padding:6px 4px;">
+  <span style="color:#10B981;font-weight:800;font-size:13px;">${working}</span>
+  <span style="color:var(--muted);font-size:10px;"> working</span>
+  <div style="margin-top:4px;">${shiftBreakdown}</div>
+</td>`;
+    
+  html += `<td style="text-align:center;padding:8px 4px;"><span style="color:#10B981;font-weight:800;font-size:13px;">${working}</span><span style="color:var(--muted);font-size:10px;"> working</span></td>`;
   });
+  html += `<td></td>`;
   html += `</tr></tbody></table>`;
 
   gridEl.innerHTML = html;
