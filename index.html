@@ -337,7 +337,7 @@ async function loadTodaySchedule() {
   try {
     const today = getToday();
     const { data } = await db.from('schedule')
-      .select('id, agent_name, type, status, created_at')
+      .select('*, agents(formal_name), shift_types(name, start_time, end_time)')
       .eq('shift_date', today)
       .eq('day_type', 'Work')
       .limit(5);
