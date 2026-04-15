@@ -401,10 +401,10 @@ async function loadScheduleGrid() {
   });
 
   allShiftTypes.forEach(st => getShiftEmoji(st.start_time));
-
   const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
-
   let html = `<table class="sched-table"><thead><tr><th class="agent-col">Agent</th>`;
+  dates.forEach(d => { ... });
+  html += `<th style="min-width:55px;text-align:center;">Off</th>`; 
   html += `<th style="min-width:55px;text-align:center;">Off</th>`;
   dates.forEach(d => {
     const isToday = d.iso === TODAY;
@@ -443,20 +443,30 @@ html += `<td style="text-align:center;font-weight:800;color:#EF4444;font-size:15
     html += `</tr>`;
   });
 
-  html += `<tr style="background:var(--surface2);"><td class="agent-col" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px 12px;">Daily Count</td>`;
+html += `<tr style="background:var(--surface2);"><td class="agent-col" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px 12px;">Daily Count</td>`;
   dates.forEach(d => {
-
-const dayEntries = Object.entries(scheduleData).filter(([k]) => k.endsWith('_'+d.iso));
-const working = dayEntries.filter(([,v]) => v.day_type==='Work').length;
-const shiftCounts = {};
-dayEntries.filter(([,v]) => v.day_type==='Work' && v.shift_type_id).forEach(([,v]) => {
-  const st = allShiftTypes.find(s => s.id === v.shift_type_id);
-  if (st) {
-    const label = st.start_time.substring(0,5);
-    shiftCounts[label] = (shiftCounts[label] || 0) + 1;
-  }
-});
-
+    const dayEntries = Object.entries(scheduleData).filter(([k]) => k.endsWith('_'+d.iso));
+    const working = dayEntries.filter(([,v]) => v.day_type==='Work').length;
+    const shiftCounts = {};
+    dayEntries.filter(([,v]) => v.day_type==='Work' && v.shift_type_id).forEach(([,v]) => {
+      const st = allShiftTypes.find(s => s.id === v.shift_type_id);
+      if (st) {
+        const label = st.start_time.substring(0,5);
+        shiftCounts[label] = (shiftCounts[label] || 0) + 1;
+      }
+    });
+    const shiftBreakdown = Object.entries(shiftCounts).sort().map(([time, cnt]) =>
+      `<div style="font-size:9px;color:var(--muted);">${time}: <b style="color:var(--text)">${cnt}</b></div>`
+    ).join('');
+    html += `<td style="text-align:center;padding:6px 4px;">
+      <span style="color:#10B981;font-weight:800;font-size:13px;">${working}</span>
+      <span style="color:var(--muted);font-size:10px;"> working</span>
+      <div style="margin-top:4px;">${shiftBreakdown}</div>
+    </td>`;
+  });
+  html += `<td></td>`;
+html += `</tr></tbody></table>`;
+  
 const shiftBreakdown = Object.entries(shiftCounts)
   .sort()
   .map(([time, cnt]) => `<div style="font-size:9px;color:var(--muted);">${time}: <b style="color:var(--text)">${cnt}</b></div>`)
