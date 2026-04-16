@@ -102,10 +102,10 @@ function renderSidebar() {
   const base   = isRoot ? '' : '../';
 
   const items = [
-    { section: 'MAIN' }, // تم تعديل "Main" لـ "MAIN" عشان يبقى زي الصورة
+    { section: 'MAIN' },
     { label: 'Dashboard',     icon: 'fa-tachometer-alt', href: base + 'index.html' },
     { label: 'Agents',        icon: 'fa-users',          href: base + 'pages/agents.html' },
-    { label: 'Annual Leave',  icon: 'fa-umbrella-beach',  href: base + 'pages/annual-leave.html' },
+    { label: 'Annual Leave',  icon: 'fa-umbrella-beach', href: base + 'pages/annual-leave.html' },
     { label: 'Schedule',      icon: 'fa-calendar-alt',   href: base + 'pages/schedule.html' },
     { label: 'Breaks',        icon: 'fa-coffee',         href: base + 'pages/breaks.html' },
     { section: 'Operations' },
@@ -113,7 +113,7 @@ function renderSidebar() {
     { label: 'KPIs',          icon: 'fa-chart-line',     href: base + 'pages/kpis.html' },
     { label: 'Excuses',       icon: 'fa-clock',          href: base + 'pages/excuses.html' },
     { label: 'xCALLY Import', icon: 'fa-upload',         href: base + 'pages/xcally-import.html' },
-    { label: 'Quality',       icon: 'fa-star',            href: base + 'pages/quality.html' },
+    { label: 'Quality',       icon: 'fa-star',           href: base + 'pages/quality.html' },
     { label: 'Call Log',      icon: 'fa-phone-alt',      href: base + 'pages/calllog.html' },
     { section: 'Config' },
     { label: 'Reference',     icon: 'fa-database',       href: base + 'pages/reference.html' },
@@ -142,12 +142,16 @@ function renderSidebar() {
   const aside = document.getElementById('sidebar');
   if (!aside) return;
 
+  // ✅ التعديل هنا: استبدال الـ ✦ emoji بصورة logo.png الحقيقية
+  // base يحدد المسار الصح سواء كنا في index.html أو في pages/
   aside.innerHTML = `
     <div class="sidebar-brand">
-      <div class="brand-logo">✦</div>
+      <div class="brand-logo">
+        <img src="${base}logo.png" alt="NOS Logo" style="width:100%;height:100%;object-fit:contain;border-radius:11px;">
+      </div>
       <div class="brand-text">
         <div class="brand-name">NATIONS OF SKY</div>
-        <div class="brand-sub">ADMIN PANEL</div> <!-- تم تعديل "Admin Panel" لـ "ADMIN PANEL" -->
+        <div class="brand-sub">ADMIN PANEL</div>
       </div>
     </div>
     <nav class="sidebar-nav">${nav}</nav>
@@ -174,6 +178,7 @@ function getWeekEnd() {
   const diff = d.getDate() - day + (day === 0 ? 0 : 7); // Sunday
   return new Date(d.setDate(diff)).toISOString().split('T')[0];
 }
+
 function getToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
 }
