@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NOS Admin — Schedule</title>
-<!-- Fix: Added Favicon to prevent 404 error -->
+<!-- Fix: Added Favicon -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
 <link rel="stylesheet" href="../css/main.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -405,7 +405,6 @@ async function loadScheduleGrid() {
   allShiftTypes.forEach(st => getShiftEmoji(st.start_time));
   const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
   
-  // Build Table Header
   let html = `<table class="sched-table"><thead><tr><th class="agent-col">Agent</th>`;
   dates.forEach(d => {
     const isToday = d.iso === TODAY;
@@ -414,7 +413,6 @@ async function loadScheduleGrid() {
   html += `<th style="min-width:55px;text-align:center;">Off</th>`;
   html += `</tr></thead><tbody>`;
 
-  // Build Table Body
   allAgents.forEach(agent => {
     html += `<tr><td class="agent-col"><div style="display:flex;align-items:center;gap:8px;"><div class="agent-avatar" style="width:26px;height:26px;font-size:9px;flex-shrink:0;">${initials(agent.formal_name)}</div><span>${agent.formal_name}</span></div></td>`;
     
@@ -448,7 +446,6 @@ async function loadScheduleGrid() {
     html += `</tr>`;
   });
 
-  // Build Table Footer (Daily Count)
   html += `<tr style="background:var(--surface2);"><td class="agent-col" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px 12px;">Daily Count</td>`;
   
   dates.forEach(d => {
@@ -475,7 +472,6 @@ async function loadScheduleGrid() {
     </td>`;
   });
   
-  // Empty cell for the "Off" column in footer
   html += `<td></td>`;
   html += `</tr></tbody></table>`;
 
@@ -836,9 +832,21 @@ async function saveShiftTypes() {
 
 function updateSummary() {
   const summary    = document.getElementById('shift-summary');
-  const totalWork  = Object.values(scheduleData).filter(s=>s.day_type==='Work').length;
-  const totalOff   = Object.values(scheduleData).filter(s=>s.day_type==='Off').length;
-  const totalLeave = Object.values(scheduleData).filter(s=>['Annual','Sick','Casual','PH'].includes(s.day_type)).length;
+  const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
+  
+  let totalWork = 0, totalOff = 0, totalLeave = 0;
+  
+  allAgents.forEach(agent => {
+    dates.forEach(d => {
+      const key = `${agent.id}_${d.iso}`;
+      const entry = scheduleData[key] || { day_type: 'Off' }; // Treat missing as Off
+      
+      if (entry.day_type === 'Work') totalWork++;
+      else if (['Annual','Sick','Casual','PH'].includes(entry.day_type)) totalLeave++;
+      else if (entry.day_type === 'Off') totalOff++;
+    });
+  });
+
   summary.innerHTML = `
     <span style="font-size:12px;color:var(--muted);">Week Summary:</span>
     <span class="day-count-item" style="background:rgba(16,185,129,0.1);color:#10B981;">✅ Work: ${totalWork}</span>
