@@ -86,6 +86,12 @@ body {
   background: var(--bg);
   color: var(--text);
   transition: background 0.3s ease, color 0.3s ease;
+  background-image: url('../logo.png'); 
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
   
   /* ═════════════════════════════════════
      BACKGROUND IMAGE ADDED HERE
