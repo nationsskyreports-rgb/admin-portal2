@@ -10,16 +10,20 @@
 ══════════════════════════════════════ */
 :root,
 [data-theme="dark"] {
-  --gold:        #D4AF37;
-  --gold-light:  #F4D03F;
-  --gold-dark:   #AA841C;
-  --gold-grad:   linear-gradient(135deg, #D4AF37 0%, #F4D03F 50%, #D4AF37 100%);
+  /* تغيير الذهبي لأزرق (Blue Theme) */
+  --gold:        #3B82F6;       /* اللون الأزرق الأساسي */
+  --gold-light:  #60A5FA;       /* درجة أفتح */
+  --gold-dark:   #2563EB;       /* درجة أغمق */
+  --gold-grad:   linear-gradient(135deg, #3B82F6 0%, #60A5FA 50%, #3B82F6 100%); /* تدرج أزرق */
+  
   --bg:          #080C14;
-  --surface:     #0E1420;
-  --surface2:    #141C2E;
-  --surface3:    #1A2540;
-  --border:      rgba(212,175,55,0.12);
-  --border2:     rgba(212,175,55,0.28);
+  /* تحويل الألوان لشفافة عشان الخلفية تظهر */
+  --surface:     rgba(14, 20, 32, 0.85);     /* كانت #0E1420 */
+  --surface2:    rgba(26, 37, 64, 0.75);    /* كانت #141C2E */
+  --surface3:    rgba(26, 37, 64, 0.8);     /* كانت #1A2540 */
+  
+  --border:      rgba(59, 130, 246, 0.15);  /* تعديل بسيط للحدود لتتناسب مع الأزرق */
+  --border2:     rgba(59, 130, 246, 0.3);
   --text:        #F0F4FF;
   --muted:       #6B7A99;
   --danger:      #EF4444;
@@ -33,25 +37,29 @@
   --shadow-card:      0 8px 24px rgba(0,0,0,0.2);
   --shadow-modal:     0 24px 60px rgba(0,0,0,0.5);
   --shadow-toast:     0 8px 24px rgba(0,0,0,0.3);
-  --table-hover:      rgba(212,175,55,0.03);
-  --scrollbar-thumb:  rgba(212,175,55,0.25);
-  --scrollbar-hover:  rgba(212,175,55,0.5);
+  --table-hover:      rgba(59, 130, 246, 0.03); /* تم تعديله للأزرق الخافت */
+  --scrollbar-thumb:  rgba(59, 130, 246, 0.25);
+  --scrollbar-hover:  rgba(59, 130, 246, 0.5);
 }
 
 /* ══════════════════════════════════════
    LIGHT THEME
 ══════════════════════════════════════ */
 [data-theme="light"] {
-  --gold:        #B8941F;
-  --gold-light:  #D4AF37;
-  --gold-dark:   #8A6E10;
-  --gold-grad:   linear-gradient(135deg, #B8941F 0%, #D4AF37 50%, #B8941F 100%);
+  /* تغيير الذهبي لأزرق (Light Mode Version) */
+  --gold:        #2563EB;       /* أزرق أغمق قليلاً للكونتراست */
+  --gold-light:  #3B82F6;
+  --gold-dark:   #1E40AF;
+  --gold-grad:   linear-gradient(135deg, #2563EB 0%, #3B82F6 50%, #2563EB 100%);
+  
   --bg:          #EEF2FB;
-  --surface:     #FFFFFF;
-  --surface2:    #F3F6FF;
-  --surface3:    #E8EEFB;
+  /* تحويل الألوان لشفافة */
+  --surface:     rgba(255, 255, 255, 0.85); /* كانت #FFFFFF */
+  --surface2:    rgba(243, 246, 255, 0.85);/* كانت #F3F6FF */
+  --surface3:    rgba(232, 238, 251, 0.85);/* كانت #E8EEFB */
+  
   --border:      rgba(0,0,0,0.08);
-  --border2:     rgba(184,148,31,0.35);
+  --border2:     rgba(37, 99, 235, 0.3);   /* حدود زرقاء */
   --text:        #0D1117;
   --muted:       #6B7A99;
   --danger:      #DC2626;
@@ -65,9 +73,9 @@
   --shadow-card:      0 4px 16px rgba(0,0,0,0.08);
   --shadow-modal:     0 24px 60px rgba(0,0,0,0.18);
   --shadow-toast:     0 8px 24px rgba(0,0,0,0.12);
-  --table-hover:      rgba(184,148,31,0.04);
-  --scrollbar-thumb:  rgba(184,148,31,0.30);
-  --scrollbar-hover:  rgba(184,148,31,0.55);
+  --table-hover:      rgba(37, 99, 235, 0.04); /* تم تعديله للأزرق */
+  --scrollbar-thumb:  rgba(37, 99, 235, 0.3);
+  --scrollbar-hover:  rgba(37, 99, 235, 0.55);
 }
 
 /* ── RESET ── */
@@ -78,6 +86,15 @@ body {
   background: var(--bg);
   color: var(--text);
   transition: background 0.3s ease, color 0.3s ease;
+  
+  /* ═════════════════════════════════════
+     BACKGROUND IMAGE ADDED HERE
+     ═════════════════════════════════════ */
+  background-image: url('path/to/your-background-image.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  /* ═════════════════════════════════════ */
 }
 
 /* ── SCROLLBAR ── */
@@ -100,6 +117,8 @@ body {
   flex-shrink: 0;
   overflow: hidden;
   transition: background 0.3s ease, border-color 0.3s ease;
+  /* Backdrop filter added for glass effect since background is now transparentish */
+  backdrop-filter: blur(10px); 
 }
 
 .sidebar-brand {
@@ -114,9 +133,9 @@ body {
   background: var(--gold-grad);
   border-radius: 11px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 800; color: #000;
+  font-size: 18px; font-weight: 800; color: #fff; /* تغيير لون اللوجو للأبيض ليتناسب مع الأزرق */
   flex-shrink: 0;
-  box-shadow: 0 4px 14px rgba(212,175,55,0.3);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
 }
 
 .brand-text { flex: 1; min-width: 0; }
@@ -155,11 +174,11 @@ body {
   position: relative;
 }
 
-.nav-item:hover { background: rgba(212,175,55,0.06); color: var(--text); }
+.nav-item:hover { background: rgba(59, 130, 246, 0.08); color: var(--text); } /* Hover Blueish */
 
 .nav-item.active {
-  background: rgba(212,175,55,0.1);
-  color: var(--gold);
+  background: rgba(59, 130, 246, 0.12); /* Active Blueish */
+  color: var(--gold); /* Using --gold which is now blue */
 }
 
 .nav-item.active::before {
@@ -176,7 +195,7 @@ body {
   font-size: 13px; flex-shrink: 0; transition: all 0.2s;
 }
 
-.nav-item.active .nav-icon { background: rgba(212,175,55,0.15); }
+.nav-item.active .nav-icon { background: rgba(59, 130, 246, 0.2); }
 
 .nav-label { flex: 1; }
 
@@ -222,6 +241,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   flex-shrink: 0; gap: 16px;
   transition: background 0.3s ease, border-color 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .topbar-left { display: flex; align-items: center; gap: 12px; }
@@ -267,7 +287,7 @@ body {
   width: 28px; height: 28px;
   background: var(--gold-grad); border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: #000;
+  font-size: 11px; font-weight: 800; color: #fff; /* White text */
 }
 .admin-name { font-size: 12px; font-weight: 700; color: var(--text); }
 
@@ -292,6 +312,7 @@ body {
   border-radius: 16px; padding: 20px;
   position: relative; overflow: hidden;
   transition: all 0.3s; cursor: default;
+  backdrop-filter: blur(5px); /* Add glass effect to cards */
 }
 
 .kpi-card:hover {
@@ -305,6 +326,7 @@ body {
   top: 0; left: 0; right: 0; height: 3px;
 }
 
+/* Updated Card Border Colors to match Blue/Gold Theme */
 .kpi-card.gold::before   { background: var(--gold-grad); }
 .kpi-card.green::before  { background: linear-gradient(90deg,#10B981,#34D399); }
 .kpi-card.red::before    { background: linear-gradient(90deg,#EF4444,#F87171); }
@@ -312,7 +334,7 @@ body {
 .kpi-card.purple::before { background: linear-gradient(90deg,#8B5CF6,#A78BFA); }
 .kpi-card.orange::before { background: linear-gradient(90deg,#F59E0B,#FCD34D); }
 
-.kpi-icon { font-size: 22px; margin-bottom: 12px; display: block; }
+.kpi-icon { font-size: 22px; margin-bottom: 12px; display: block; color: var(--text); }
 .kpi-label {
   font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1.2px;
@@ -336,6 +358,7 @@ body {
   border-radius: 16px; overflow: hidden;
   margin-bottom: 20px;
   transition: background 0.3s ease, border-color 0.3s ease;
+  backdrop-filter: blur(5px);
 }
 
 .section-header {
@@ -343,6 +366,7 @@ body {
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap; gap: 10px;
+  background: var(--surface2); /* Ensure header has solid/translucent bg */
 }
 
 .section-title {
@@ -388,7 +412,7 @@ body {
   width: 32px; height: 32px;
   background: var(--gold-grad); border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: #000; flex-shrink: 0;
+  font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0;
 }
 .agent-name-cell { font-weight: 700; }
 .agent-email-cell { font-size: 11px; color: var(--muted); margin-top: 1px; }
@@ -407,7 +431,7 @@ body {
 .badge-info    { background:rgba(59,130,246,0.12); color:#3B82F6; border:1px solid rgba(59,130,246,0.2); }
 .badge-purple  { background:rgba(139,92,246,0.12); color:#8B5CF6; border:1px solid rgba(139,92,246,0.2); }
 .badge-muted   { background:rgba(107,122,153,0.12); color:var(--muted); border:1px solid rgba(107,122,153,0.2); }
-.badge-gold    { background:rgba(212,175,55,0.12); color:var(--gold); border:1px solid rgba(212,175,55,0.2); }
+.badge-gold    { background:rgba(59,130,246,0.12); color:var(--gold); border:1px solid rgba(59,130,246,0.2); /* Blue Badge now */ }
 
 /* ══════════════════════════════════════
    BUTTONS
@@ -423,10 +447,10 @@ body {
 }
 
 .btn-primary {
-  background: var(--gold-grad); color: #000;
-  box-shadow: 0 4px 14px rgba(212,175,55,0.25);
+  background: var(--gold-grad); color: #fff; /* White text on Blue button */
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25); /* Blue shadow */
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(212,175,55,0.4); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
 
 .btn-ghost {
   background: var(--surface2); border: 1px solid var(--border);
@@ -484,7 +508,7 @@ body {
 .form-input:focus {
   border-color: var(--gold);
   background: var(--surface3);
-  box-shadow: 0 0 0 3px rgba(212,175,55,0.1);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); /* Blue focus glow */
 }
 .form-input::placeholder { color: rgba(107,122,153,0.4); }
 select.form-input option { background: var(--surface2); color: var(--text); }
@@ -615,7 +639,7 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .spinner {
   width: 30px; height: 30px;
   border: 3px solid var(--border);
-  border-top-color: var(--gold);
+  border-top-color: var(--gold); /* Spinner is now blue */
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -645,7 +669,7 @@ textarea.form-input { resize: vertical; min-height: 80px; }
   font-family: 'Inter', sans-serif;
   outline: none; transition: all 0.2s;
 }
-.search-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,175,55,0.1); }
+.search-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); } /* Blue Glow */
 .search-input::placeholder { color: rgba(107,122,153,0.5); }
 
 /* ══════════════════════════════════════
@@ -664,7 +688,7 @@ textarea.form-input { resize: vertical; min-height: 80px; }
   font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
   font-family: 'Inter', sans-serif;
 }
-.tab-btn.active { background: var(--gold-grad); color: #000; }
+.tab-btn.active { background: var(--gold-grad); color: #fff; } /* White text on Blue */
 .tab-btn:hover:not(.active) { color: var(--text); }
 
 /* ══════════════════════════════════════
