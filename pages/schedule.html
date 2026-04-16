@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NOS Admin — Schedule</title>
+<!-- Fix: Added Favicon to prevent 404 error -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
 <link rel="stylesheet" href="../css/main.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -402,22 +404,20 @@ async function loadScheduleGrid() {
 
   allShiftTypes.forEach(st => getShiftEmoji(st.start_time));
   const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
-  let html = `<table class="sched-table"><thead><tr><th class="agent-col">Agent</th>`;
-
-  dates.forEach(d => {
-  const isToday = d.iso === TODAY;
-  html += `<th><div class="day-header"><span class="day-name ${isToday?'day-today':''}">${d.dayName}</span><span class="day-date ${isToday?'day-today':''}">${d.display}</span></div></th>`;
-});
-html += `<th style="min-width:55px;text-align:center;">Off</th>`;
   
+  // Build Table Header
+  let html = `<table class="sched-table"><thead><tr><th class="agent-col">Agent</th>`;
   dates.forEach(d => {
     const isToday = d.iso === TODAY;
     html += `<th><div class="day-header"><span class="day-name ${isToday?'day-today':''}">${d.dayName}</span><span class="day-date ${isToday?'day-today':''}">${d.display}</span></div></th>`;
   });
+  html += `<th style="min-width:55px;text-align:center;">Off</th>`;
   html += `</tr></thead><tbody>`;
 
+  // Build Table Body
   allAgents.forEach(agent => {
     html += `<tr><td class="agent-col"><div style="display:flex;align-items:center;gap:8px;"><div class="agent-avatar" style="width:26px;height:26px;font-size:9px;flex-shrink:0;">${initials(agent.formal_name)}</div><span>${agent.formal_name}</span></div></td>`;
+    
     dates.forEach(d => {
       const key        = `${agent.id}_${d.iso}`;
       const entry      = scheduleData[key] || { day_type: 'Off', shift_type_id: null };
@@ -439,15 +439,18 @@ html += `<th style="min-width:55px;text-align:center;">Off</th>`;
         ${hasReq ? `<div style="font-size:9px;color:#10B981;font-weight:700;margin-top:2px;text-align:center;">← ${reqLabel}</div>` : ''}
       </td>`;
     });
-const offCount = dates.filter(d => {
-  const entry = scheduleData[`${agent.id}_${d.iso}`];
-  return !entry || entry.day_type === 'Off';
-}).length;
-html += `<td style="text-align:center;font-weight:800;color:#EF4444;font-size:15px;background:var(--surface2);">${offCount}</td>`;
+
+    const offCount = dates.filter(d => {
+      const entry = scheduleData[`${agent.id}_${d.iso}`];
+      return !entry || entry.day_type === 'Off';
+    }).length;
+    html += `<td style="text-align:center;font-weight:800;color:#EF4444;font-size:15px;background:var(--surface2);">${offCount}</td>`;
     html += `</tr>`;
   });
 
-html += `<tr style="background:var(--surface2);"><td class="agent-col" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px 12px;">Daily Count</td>`;
+  // Build Table Footer (Daily Count)
+  html += `<tr style="background:var(--surface2);"><td class="agent-col" style="font-size:11px;color:var(--muted);font-weight:700;padding:8px 12px;">Daily Count</td>`;
+  
   dates.forEach(d => {
     const dayEntries = Object.entries(scheduleData).filter(([k]) => k.endsWith('_'+d.iso));
     const working = dayEntries.filter(([,v]) => v.day_type==='Work').length;
@@ -460,19 +463,19 @@ html += `<tr style="background:var(--surface2);"><td class="agent-col" style="fo
       }
     });
   
-const shiftBreakdown = Object.entries(shiftCounts)
-  .sort()
-  .map(([time, cnt]) => `<div style="font-size:9px;color:var(--muted);">${time}: <b style="color:var(--text)">${cnt}</b></div>`)
-  .join('');
+    const shiftBreakdown = Object.entries(shiftCounts)
+      .sort()
+      .map(([time, cnt]) => `<div style="font-size:9px;color:var(--muted);">${time}: <b style="color:var(--text)">${cnt}</b></div>`)
+      .join('');
 
-html += `<td style="text-align:center;padding:6px 4px;">
-  <span style="color:#10B981;font-weight:800;font-size:13px;">${working}</span>
-  <span style="color:var(--muted);font-size:10px;"> working</span>
-  <div style="margin-top:4px;">${shiftBreakdown}</div>
-</td>`;
-    
-  html += `<td style="text-align:center;padding:8px 4px;"><span style="color:#10B981;font-weight:800;font-size:13px;">${working}</span><span style="color:var(--muted);font-size:10px;"> working</span></td>`;
+    html += `<td style="text-align:center;padding:6px 4px;">
+      <span style="color:#10B981;font-weight:800;font-size:13px;">${working}</span>
+      <span style="color:var(--muted);font-size:10px;"> working</span>
+      <div style="margin-top:4px;">${shiftBreakdown}</div>
+    </td>`;
   });
+  
+  // Empty cell for the "Off" column in footer
   html += `<td></td>`;
   html += `</tr></tbody></table>`;
 
