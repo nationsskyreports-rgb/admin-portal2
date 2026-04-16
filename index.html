@@ -1,20 +1,113 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NOS Admin — Dashboard</title>
-<link rel="stylesheet" href="css/main.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOS Admin — Dashboard</title>
+  
+  <!-- 1. إضافة الأيقونة (مهم جداً) -->
+  <link rel="icon" href="images/icon.png" type="image/png">
+  
+  <!-- ربط ملف الـ CSS الأساسي -->
+  <link rel="stylesheet" href="css/main.css">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- ستايل خاص بصفحة اللوجين عشان ملف الـ CSS مالهوش ستايل لوجين -->
+  <style>
+    #login-view {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      width: 100%;
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 9999;
+      background: rgba(8, 12, 20, 0.6); /* خلفية مظللة */
+      backdrop-filter: blur(8px);
+      transition: opacity 0.5s ease;
+    }
+    
+    .login-card {
+      width: 100%;
+      max-width: 400px;
+      padding: 2.5rem;
+      /* استخدام متغيرات الـ CSS الموجودة في main.css */
+      background: var(--surface); 
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      text-align: center;
+      backdrop-filter: blur(15px);
+    }
+
+    .login-logo-icon {
+      width: 60px; height: 60px;
+      background: var(--gold-grad);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; color: white;
+      margin: 0 auto 20px;
+      box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+    }
+
+    .login-title { font-size: 24px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    .login-desc { color: var(--muted); font-size: 13px; margin-bottom: 30px; }
+
+    /* إخفاء الداشبورد افتراضياً */
+    .admin-layout { display: none; }
+    
+    /* كلاس لإظهار الداشبورد */
+    .show-dashboard { display: flex !important; }
+    .hide-login { display: none !important; }
+  </style>
 </head>
 <body>
 
-<div class="admin-layout">
+  <!-- ═════════════════════════════════════
+       LOGIN VIEW (مضاف حديثاً)
+       ═════════════════════════════════════ -->
+  <div id="login-view">
+    <div class="login-card">
+      <div class="login-logo-icon"><i class="fas fa-plane-departure"></i></div>
+      <h1 class="login-title">Welcome Back</h1>
+      <p class="login-desc">Enter your credentials to access the Admin Panel</p>
+      
+      <form onsubmit="event.preventDefault(); performLogin();">
+        <div class="form-group" style="margin-bottom: 20px; text-align: left;">
+          <label class="form-label">Username</label>
+          <div style="position: relative;">
+            <i class="fas fa-user" style="position: absolute; left: 14px; top: 12px; color: var(--muted);"></i>
+            <input type="text" class="form-input" style="padding-left: 40px;" placeholder="admin" value="admin">
+          </div>
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 30px; text-align: left;">
+          <label class="form-label">Password</label>
+          <div style="position: relative;">
+            <i class="fas fa-lock" style="position: absolute; left: 14px; top: 12px; color: var(--muted);"></i>
+            <input type="password" class="form-input" style="padding-left: 40px;" placeholder="••••••••" value="123456">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">
+          Sign In <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════
+       DASHBOARD VIEW (الكود الأصلي بتاعك)
+       ═════════════════════════════════════ -->
+  <div class="admin-layout" id="dashboard-layout">
 
   <!-- ══ SIDEBAR ══ -->
-<aside class="sidebar" id="sidebar"></aside>
+  <aside class="sidebar" id="sidebar"></aside>
+  
   <!-- ══ MAIN ══ -->
   <div class="main-content">
 
@@ -171,10 +264,27 @@
 
 <!-- TOAST -->
 <div id="toast-container"></div>
+
+<!-- ربط ملفات الجافاسكريبت -->
 <script src="js/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui.js"></script>
+
 <script>
+// ── Login Logic ──
+function performLogin() {
+  const loginView = document.getElementById('login-view');
+  const dashboardLayout = document.getElementById('dashboard-layout');
+  
+  // محاكاة عمل لوجين
+  loginView.style.opacity = '0';
+  setTimeout(() => {
+    loginView.style.display = 'none';
+    dashboardLayout.classList.add('show-dashboard');
+    loadAll(); // تحميل الداتا بعد اللوجين
+  }, 500);
+}
+
 // ── Init ──
 renderSidebar();
 applyThemeIcon();
@@ -183,6 +293,10 @@ if (session) {
   const name = session.username || 'Admin';
   document.getElementById('admin-name').innerText = name;
   document.getElementById('admin-avatar').innerText = initials(name);
+  // لو فيه Session مسبق، نحط اللوجين ونظهر الداشبورد
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('dashboard-layout').classList.add('show-dashboard');
+  loadAll();
 }
 
 // ── Load All ──
@@ -231,7 +345,9 @@ async function loadKPIs() {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'Pending');
     document.getElementById('kpi-requests').innerText = pending || 0;
-    document.getElementById('pending-count').innerText = pending || 0;
+    // Check if element exists before setting to avoid error
+    const badge = document.getElementById('pending-count');
+    if(badge) badge.innerText = pending || 0;
 
     // This week shifts
     const weekStart = getWeekStart();
@@ -277,7 +393,8 @@ async function loadCallsChart(month) {
     const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,6);
     const labels = sorted.map(e=>e[0]);
     const values = sorted.map(e=>e[1]);
-    const colors = ['#D4AF37','#10B981','#3B82F6','#8B5CF6','#EF4444','#F59E0B'];
+    // ألوان الشارت (زرق كحلي، أخضر، أزرق، بنفسجي، أحمر، برتقالي)
+    const colors = ['#3B82F6','#10B981','#60A5FA','#8B5CF6','#EF4444','#F59E0B'];
 
     const ctx = document.getElementById('calls-chart');
     if (callsChartInstance) callsChartInstance.destroy();
@@ -389,9 +506,6 @@ async function loadRecentCalls() {
     `).join('');
   } catch(e) { list.innerHTML = '<div class="p-20 center red">Error loading</div>'; }
 }
-
-// Initial load
-loadAll();
 </script>
 </body>
 </html>
