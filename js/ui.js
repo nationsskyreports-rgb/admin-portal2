@@ -69,7 +69,6 @@ function debounce(fn, delay=300) {
 // NOS Admin — Theme Toggle
 // ═══════════════════════════════════════════
 
-// تحميل الـ theme المحفوظ عند أول تحميل الصفحة
 (function initTheme() {
   const saved = localStorage.getItem('nos-theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
@@ -80,7 +79,6 @@ function toggleTheme() {
   const next    = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('nos-theme', next);
-  // تحديث أيقونة الزرار
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) btn.innerHTML = next === 'dark'
     ? '<i class="fas fa-moon"></i>'
@@ -104,7 +102,7 @@ function renderSidebar() {
   const base   = isRoot ? '' : '../';
 
   const items = [
-    { section: 'Main' },
+    { section: 'MAIN' }, // تم تعديل "Main" لـ "MAIN" عشان يبقى زي الصورة
     { label: 'Dashboard',     icon: 'fa-tachometer-alt', href: base + 'index.html' },
     { label: 'Agents',        icon: 'fa-users',          href: base + 'pages/agents.html' },
     { label: 'Annual Leave',  icon: 'fa-umbrella-beach',  href: base + 'pages/annual-leave.html' },
@@ -122,7 +120,6 @@ function renderSidebar() {
     { label: 'Reports',       icon: 'fa-chart-bar',      href: base + 'pages/reports.html' },
   ];
 
-  // حدد الصفحة الحالية عشان تتلون active
   const currentFile = path.split('/').pop() || 'index.html';
 
   let nav = '';
@@ -150,7 +147,7 @@ function renderSidebar() {
       <div class="brand-logo">✦</div>
       <div class="brand-text">
         <div class="brand-name">NATIONS OF SKY</div>
-        <div class="brand-sub">Admin Panel</div>
+        <div class="brand-sub">ADMIN PANEL</div> <!-- تم تعديل "Admin Panel" لـ "ADMIN PANEL" -->
       </div>
     </div>
     <nav class="sidebar-nav">${nav}</nav>
@@ -160,6 +157,7 @@ function renderSidebar() {
       </button>
     </div>`;
 }
+
 // ═══════════════════════════════════════════
 // NOS Admin — Date Helpers
 // ═══════════════════════════════════════════
