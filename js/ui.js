@@ -112,6 +112,8 @@ function renderSidebar() {
     { label: 'Requests',      icon: 'fa-file-alt',       href: base + 'pages/requests.html', badge: 'pending-count' },
     { label: 'KPIs',          icon: 'fa-chart-line',     href: base + 'pages/kpis.html' },
     { label: 'Excuses',       icon: 'fa-clock',          href: base + 'pages/excuses.html' },
+    { label: 'Adherence',     icon: 'fa-user-check',     href: base + 'pages/adherence.html' },
+    { label: 'Waiving',       icon: 'fa-hand-holding-heart', href: base + 'pages/waiving.html' },
     { label: 'xCALLY Import', icon: 'fa-upload',         href: base + 'pages/xcally-import.html' },
     { label: 'Quality',       icon: 'fa-star',           href: base + 'pages/quality.html' },
     { label: 'Call Log',      icon: 'fa-phone-alt',      href: base + 'pages/calllog.html' },
@@ -142,8 +144,6 @@ function renderSidebar() {
   const aside = document.getElementById('sidebar');
   if (!aside) return;
 
-  // ✅ التعديل هنا: استبدال الـ ✦ emoji بصورة logo.png الحقيقية
-  // base يحدد المسار الصح سواء كنا في index.html أو في pages/
   aside.innerHTML = `
     <div class="sidebar-brand">
       <div class="brand-logo">
