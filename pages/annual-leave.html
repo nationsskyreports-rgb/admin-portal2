@@ -228,14 +228,30 @@ async function loadData() {
 // حسب وحفظ تلقائي من غير ما المستخدم يضغط حاجة
 async function autoSync() {
   for (const r of leaveData) {
-    if (!r.id) continue;
     const total_used = MONTHS.reduce((s, m) => s + (r['used_' + m] || 0), 0);
     const remaining  = (r.entitlement || 0) + (r.carry_over || 0) - total_used;
-    await db.from('annual_leave').update({
-      total_used,
-      remaining,
-      updated_at: new Date().toISOString()
-    }).eq('id', r.id);
+    
+    if (r.id) {
+      // update
+      await db.from('annual_leave').update({
+        total_used,
+        remaining,
+        updated_at: new Date().toISOString()
+      }).eq('id', r.id);
+    } else {
+      // insert لو مفيش record
+      await db.from('annual_leave').insert({
+        agent_id: r.agent_id,
+        agent_name: r.formal_name,
+        year: r.year,
+        entitlement: 21,
+        carry_over: 0,
+        total_used,
+        remaining,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
     r.total_used = total_used;
     r.remaining  = remaining;
   }
