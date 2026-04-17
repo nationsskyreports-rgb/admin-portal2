@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOS Admin — Adherence</title>
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.dev-type-late    { color:#F59E0B; font-weight:700; }
+.dev-type-early   { color:#EF4444; font-weight:700; }
+.dev-type-long    { color:#8B5CF6; font-weight:700; }
+.dev-type-missed  { color:#DC2626; font-weight:700; }
+.dev-type-extra   { color:#3B82F6; font-weight:700; }
+
+.waived-row { opacity:0.55; }
+.waived-row td { text-decoration:line-through; text-decoration-color:var(--muted); }
+.waived-row td:last-child { text-decoration:none; }
+
+.top-offender-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; border-bottom:1px solid var(--border);
+}
+.top-offender-row:last-child { border-bottom:none; }
+.top-offender-left { display:flex; align-items:center; gap:10px; }
+
+.min-pill {
+  display:inline-block; padding:3px 9px; border-radius:20px;
+  font-size:11px; font-weight:800; font-family:'IBM Plex Mono',monospace;
+  background:rgba(239,68,68,0.12); color:#EF4444; border:1px solid rgba(239,68,68,0.2);
+}
+.min-pill.small { background:rgba(245,158,11,0.12); color:#F59E0B; border-color:rgba(245,158,11,0.2); }
+</style>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+
+    <!-- ── TOP BAR ── -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="page-title">Adherence</div>
+        <div class="breadcrumb">
+          <i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i>
+          Schedule Deviations & Compliance
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+          <i class="fas fa-plus"></i> Add Deviation
+        </button>
+        <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme">
+          <i class="fas fa-moon"></i>
+        </button>
+        <div class="admin-chip">
+          <div class="admin-avatar" id="admin-avatar">KR</div>
+          <span class="admin-name" id="admin-name">Admin</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- ── FILTERS ── -->
+      <div class="section-card fade-up" style="margin-bottom:14px;">
+        <div class="section-header">
+          <div class="section-title">
+            <i class="fas fa-filter" style="color:var(--gold)"></i> Filters
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="resetFilters()">
+            <i class="fas fa-undo"></i> Reset
+          </button>
+        </div>
+        <div class="section-body">
+          <div class="form-grid form-grid-3">
+            <div class="form-group">
+              <label class="form-label">Date Range</label>
+              <select id="filter-range" class="form-input" onchange="onRangeChange()">
+                <option value="mtd" selected>Month to Date</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="last7">Last 7 Days</option>
+                <option value="last30">Last 30 Days</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+            <div class="form-group" id="custom-from-wrap" style="display:none;">
+              <label class="form-label">From</label>
+              <input type="date" id="filter-from" class="form-input" onchange="loadData()">
+            </div>
+            <div class="form-group" id="custom-to-wrap" style="display:none;">
+              <label class="form-label">To</label>
+              <input type="date" id="filter-to" class="form-input" onchange="loadData()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Agent</label>
+              <select id="filter-agent" class="form-input" onchange="loadData()">
+                <option value="">All Agents</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Deviation Type</label>
+              <select id="filter-type" class="form-input" onchange="loadData()">
+                <option value="">All Types</option>
+                <option value="Late Login">Late Login</option>
+                <option value="Early Logout">Early Logout</option>
+                <option value="Long Break">Long Break</option>
+                <option value="Missed Shift">Missed Shift</option>
+                <option value="Extra Break">Extra Break</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="filter-status" class="form-input" onchange="loadData()">
+                <option value="active" selected>Active Only</option>
+                <option value="">All</option>
+                <option value="waived">Waived Only</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── KPI CARDS ── -->
+      <div class="kpi-grid fade-up">
+        <div class="kpi-card gold">
+          <span class="kpi-icon">📊</span>
+          <div class="kpi-label">Avg Adherence</div>
+          <div class="kpi-value" id="kpi-adherence">—</div>
+          <div class="kpi-sub">Net after waives</div>
+        </div>
+        <div class="kpi-card red">
+          <span class="kpi-icon">⚠️</span>
+          <div class="kpi-label">Total Deviations</div>
+          <div class="kpi-value" id="kpi-total">—</div>
+          <div class="kpi-sub" id="kpi-total-sub">In selected range</div>
+        </div>
+        <div class="kpi-card green">
+          <span class="kpi-icon">✅</span>
+          <div class="kpi-label">Waived</div>
+          <div class="kpi-value" id="kpi-waived">—</div>
+          <div class="kpi-sub" id="kpi-waived-sub">Forgiven deviations</div>
+        </div>
+        <div class="kpi-card orange">
+          <span class="kpi-icon">⏱️</span>
+          <div class="kpi-label">Total Lost Time</div>
+          <div class="kpi-value" id="kpi-lost">—</div>
+          <div class="kpi-sub">Net minutes (after waives)</div>
+        </div>
+        <div class="kpi-card purple">
+          <span class="kpi-icon">🔥</span>
+          <div class="kpi-label">Most Common</div>
+          <div class="kpi-value" id="kpi-common" style="font-size:16px;">—</div>
+          <div class="kpi-sub" id="kpi-common-sub"></div>
+        </div>
+        <div class="kpi-card blue">
+          <span class="kpi-icon">👥</span>
+          <div class="kpi-label">Agents Affected</div>
+          <div class="kpi-value" id="kpi-agents">—</div>
+          <div class="kpi-sub">Unique agents</div>
+        </div>
+      </div>
+
+      <!-- ── MAIN ROW: Table + Top Offenders ── -->
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;">
+
+        <!-- DEVIATIONS TABLE -->
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-list" style="color:var(--gold)"></i>
+              Deviations Log
+            </div>
+            <span id="row-count" style="font-size:11px;color:var(--muted);"></span>
+          </div>
+          <div class="section-body no-pad">
+            <div class="table-wrap">
+              <table class="nos-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Agent</th>
+                    <th>Type</th>
+                    <th>Scheduled</th>
+                    <th>Actual</th>
+                    <th>Deviation</th>
+                    <th>Status</th>
+                    <th style="text-align:center;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dev-tbody">
+                  <tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOP OFFENDERS -->
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-exclamation-triangle" style="color:var(--gold)"></i>
+              Top Offenders
+            </div>
+          </div>
+          <div class="section-body no-pad">
+            <div id="top-offenders">
+              <div class="loading-wrap"><div class="spinner"></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ WAIVE MODAL ═══════════ -->
+<div class="modal-overlay" id="waive-modal">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fas fa-hand-holding-heart" style="color:var(--success);margin-right:6px;"></i> Waive Deviation</div>
+      <button class="modal-close" onclick="closeWaiveModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-msg" id="waive-preview" style="margin-bottom:8px;"></div>
+    <div class="form-group" style="margin-top:16px;">
+      <label class="form-label">Reason <span class="req">*</span></label>
+      <textarea id="waive-reason" class="form-input" rows="3" placeholder="Reason for waiving (e.g. traffic, medical, approved by manager...)"></textarea>
+    </div>
+    <div class="modal-btns" style="margin-top:18px;">
+      <button class="btn btn-ghost" onclick="closeWaiveModal()">Cancel</button>
+      <button class="btn btn-success" onclick="confirmWaive()">
+        <i class="fas fa-check"></i> Confirm Waive
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ ADD DEVIATION MODAL ═══════════ -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal-box" style="max-width:560px;">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fas fa-plus-circle" style="color:var(--gold);margin-right:6px;"></i> Add Deviation</div>
+      <button class="modal-close" onclick="closeAddModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="form-grid form-grid-2">
+      <div class="form-group form-full">
+        <label class="form-label">Agent <span class="req">*</span></label>
+        <select id="add-agent" class="form-input">
+          <option value="">Select agent...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date <span class="req">*</span></label>
+        <input type="date" id="add-date" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type <span class="req">*</span></label>
+        <select id="add-type" class="form-input" onchange="onAddTypeChange()">
+          <option value="Late Login">Late Login</option>
+          <option value="Early Logout">Early Logout</option>
+          <option value="Long Break">Long Break</option>
+          <option value="Missed Shift">Missed Shift</option>
+          <option value="Extra Break">Extra Break</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" id="add-sched-label">Scheduled Time</label>
+        <input type="text" id="add-scheduled" class="form-input" placeholder="09:00">
+      </div>
+      <div class="form-group">
+        <label class="form-label" id="add-actual-label">Actual Time</label>
+        <input type="text" id="add-actual" class="form-input" placeholder="09:15">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Deviation (minutes) <span class="req">*</span></label>
+        <input type="number" id="add-minutes" class="form-input" placeholder="15" min="0">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Notes (optional)</label>
+        <textarea id="add-notes" class="form-input" rows="2" placeholder="Any additional context..."></textarea>
+      </div>
+    </div>
+    <div class="modal-btns" style="margin-top:18px;">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDeviation()">
+        <i class="fas fa-save"></i> Save Deviation
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ DELETE CONFIRM MODAL ═══════════ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Confirm</div>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="../js/supabase.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+renderSidebar();
+applyThemeIcon();
+const session = checkAuth();
+if (session) {
+  document.getElementById('admin-name').innerText  = session.username || 'Admin';
+  document.getElementById('admin-avatar').innerText = initials(session.username || 'Admin');
+}
+
+let allAgents = [];
+let currentData = [];
+let waiveTargetId = null;
+
+// ── INIT ──
+async function init() {
+  const { data } = await db.from('agents')
+    .select('id,formal_name')
+    .eq('status','Active')
+    .order('formal_name');
+  allAgents = data || [];
+
+  const filterSel = document.getElementById('filter-agent');
+  const addSel    = document.getElementById('add-agent');
+  allAgents.forEach(a => {
+    filterSel.add(new Option(a.formal_name, a.id));
+    addSel.add(new Option(a.formal_name, a.id));
+  });
+
+  document.getElementById('add-date').value = getToday();
+  onAddTypeChange();
+  await loadData();
+}
+
+// ── FILTERS ──
+function onRangeChange() {
+  const val = document.getElementById('filter-range').value;
+  const isCustom = val === 'custom';
+  document.getElementById('custom-from-wrap').style.display = isCustom ? 'flex' : 'none';
+  document.getElementById('custom-to-wrap').style.display   = isCustom ? 'flex' : 'none';
+  if (isCustom) {
+    document.getElementById('filter-from').value = getToday();
+    document.getElementById('filter-to').value   = getToday();
+  }
+  loadData();
+}
+
+function resetFilters() {
+  document.getElementById('filter-range').value  = 'mtd';
+  document.getElementById('filter-agent').value  = '';
+  document.getElementById('filter-type').value   = '';
+  document.getElementById('filter-status').value = 'active';
+  document.getElementById('custom-from-wrap').style.display = 'none';
+  document.getElementById('custom-to-wrap').style.display   = 'none';
+  loadData();
+}
+
+function getDateRange() {
+  const val = document.getElementById('filter-range').value;
+  const today = getToday();
+  const t = new Date(today + 'T00:00:00');
+
+  if (val === 'today')   return { from: today, to: today };
+  if (val === 'mtd') {
+    const first = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-01`;
+    return { from: first, to: today };
+  }
+  if (val === 'week') {
+    return { from: getWeekStart(), to: getWeekEnd() };
+  }
+  if (val === 'last7') {
+    const d = new Date(t); d.setDate(d.getDate() - 6);
+    return { from: d.toISOString().split('T')[0], to: today };
+  }
+  if (val === 'last30') {
+    const d = new Date(t); d.setDate(d.getDate() - 29);
+    return { from: d.toISOString().split('T')[0], to: today };
+  }
+  if (val === 'custom') {
+    return {
+      from: document.getElementById('filter-from').value || today,
+      to:   document.getElementById('filter-to').value   || today,
+    };
+  }
+  return { from: today, to: today };
+}
+
+// ── LOAD DATA ──
+async function loadData() {
+  const tbody = document.getElementById('dev-tbody');
+  tbody.innerHTML = '<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
+
+  try {
+    const { from, to } = getDateRange();
+    const agentId  = document.getElementById('filter-agent').value;
+    const typeVal  = document.getElementById('filter-type').value;
+    const statusV  = document.getElementById('filter-status').value;
+
+    let q = db.from('adherence_deviations').select('*')
+      .gte('deviation_date', from)
+      .lte('deviation_date', to)
+      .order('deviation_date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (agentId) q = q.eq('agent_id', agentId);
+    if (typeVal) q = q.eq('deviation_type', typeVal);
+    if (statusV === 'active') q = q.eq('is_waived', false);
+    if (statusV === 'waived') q = q.eq('is_waived', true);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    currentData = data || [];
+    renderTable(currentData);
+    renderKPIs(currentData);
+    renderTopOffenders(currentData);
+
+    document.getElementById('row-count').innerText = currentData.length + ' record(s)';
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><span class="empty-icon">❌</span>${e.message}</div></td></tr>`;
+    showToast('Failed: ' + e.message, 'error');
+  }
+}
+
+// ── RENDER TABLE ──
+function typeClass(t) {
+  const m = {
+    'Late Login':'dev-type-late', 'Early Logout':'dev-type-early',
+    'Long Break':'dev-type-long', 'Missed Shift':'dev-type-missed',
+    'Extra Break':'dev-type-extra'
+  };
+  return m[t] || '';
+}
+function typeIcon(t) {
+  const m = {
+    'Late Login':'⏰', 'Early Logout':'🚪',
+    'Long Break':'☕', 'Missed Shift':'❌', 'Extra Break':'➕'
+  };
+  return m[t] || '•';
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('dev-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><span class="empty-icon">✨</span>No deviations found — everyone is on track!</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(r => {
+    const rowCls   = r.is_waived ? 'waived-row' : '';
+    const statusB  = r.is_waived
+      ? '<span class="badge badge-success">✓ Waived</span>'
+      : '<span class="badge badge-warning">Active</span>';
+    const minsCls  = r.deviation_minutes >= 30 ? 'min-pill' : 'min-pill small';
+
+    let actions = '';
+    if (r.is_waived) {
+      actions = `<button class="btn btn-ghost btn-sm btn-icon" title="Waive details" onclick="showWaiveDetails('${r.id}')"><i class="fas fa-info-circle"></i></button>`;
+    } else {
+      actions = `<button class="btn btn-success btn-sm" onclick="openWaiveModal('${r.id}')" title="Waive"><i class="fas fa-hand-holding-heart"></i> Waive</button>`;
+    }
+    actions += ` <button class="btn btn-danger btn-sm btn-icon" onclick="confirmDelete('${r.id}')" title="Delete"><i class="fas fa-trash"></i></button>`;
+
+    return `<tr class="${rowCls}">
+      <td style="font-weight:700;color:var(--gold);white-space:nowrap;">${formatDateShort(r.deviation_date)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">${initials(r.agent_name)}</div>
+          <span style="font-weight:700;">${r.agent_name}</span>
+        </div>
+      </td>
+      <td class="${typeClass(r.deviation_type)}">${typeIcon(r.deviation_type)} ${r.deviation_type}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);">${r.scheduled_value || '—'}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;">${r.actual_value || '—'}</td>
+      <td><span class="${minsCls}">${r.deviation_minutes} min</span></td>
+      <td>${statusB}</td>
+      <td style="white-space:nowrap;text-align:center;">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── RENDER KPIs ──
+function renderKPIs(data) {
+  if (!data.length) {
+    ['kpi-adherence','kpi-total','kpi-waived','kpi-lost','kpi-common','kpi-agents'].forEach(id => {
+      document.getElementById(id).innerText = '—';
+    });
+    document.getElementById('kpi-adherence').innerText = '100%';
+    document.getElementById('kpi-total').innerText = '0';
+    document.getElementById('kpi-waived').innerText = '0';
+    document.getElementById('kpi-lost').innerText = '0 min';
+    document.getElementById('kpi-common').innerText = 'None';
+    document.getElementById('kpi-agents').innerText = '0';
+    return;
+  }
+
+  const total = data.length;
+  const waived = data.filter(r => r.is_waived).length;
+  const active = total - waived;
+
+  const totalMins     = data.reduce((s,r) => s + (r.deviation_minutes||0), 0);
+  const netLostMins   = data.filter(r => !r.is_waived).reduce((s,r) => s + (r.deviation_minutes||0), 0);
+
+  // Adherence % = (1 - active/total) * 100 مبسطة — أفضل نحسب بنظام Net: كل deviation بتنقص نقطة، waive بيرجعها
+  // للبساطة نستخدم: Net Adherence = active / total inverted
+  const adherencePct = total > 0 ? Math.max(0, 100 - (active / total) * 100) : 100;
+
+  // Most common
+  const typeCount = {};
+  data.forEach(r => {
+    typeCount[r.deviation_type] = (typeCount[r.deviation_type]||0) + 1;
+  });
+  const sortedTypes = Object.entries(typeCount).sort((a,b) => b[1]-a[1]);
+  const mostCommon  = sortedTypes[0];
+
+  // Unique agents
+  const agents = new Set(data.map(r => r.agent_name));
+
+  document.getElementById('kpi-adherence').innerText  = adherencePct.toFixed(0) + '%';
+  document.getElementById('kpi-total').innerText      = total;
+  document.getElementById('kpi-total-sub').innerText  = active + ' active · ' + waived + ' waived';
+  document.getElementById('kpi-waived').innerText     = waived;
+  document.getElementById('kpi-waived-sub').innerText = total > 0 ? ((waived/total)*100).toFixed(0) + '% of total' : '—';
+  document.getElementById('kpi-lost').innerText       = netLostMins + ' min';
+  document.getElementById('kpi-common').innerText     = mostCommon ? mostCommon[0] : 'None';
+  document.getElementById('kpi-common-sub').innerText = mostCommon ? (mostCommon[1] + ' occurrences') : '';
+  document.getElementById('kpi-agents').innerText     = agents.size;
+}
+
+// ── TOP OFFENDERS ──
+function renderTopOffenders(data) {
+  const container = document.getElementById('top-offenders');
+  if (!data.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:30px 16px;"><span class="empty-icon">🏆</span>No offenders!</div>';
+    return;
+  }
+
+  const map = {};
+  data.forEach(r => {
+    if (r.is_waived) return;
+    if (!map[r.agent_name]) map[r.agent_name] = { name: r.agent_name, count: 0, mins: 0 };
+    map[r.agent_name].count++;
+    map[r.agent_name].mins += (r.deviation_minutes||0);
+  });
+
+  const sorted = Object.values(map).sort((a,b) => b.count - a.count || b.mins - a.mins).slice(0,8);
+
+  if (!sorted.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:30px 16px;"><span class="empty-icon">🏆</span>All deviations waived!</div>';
+    return;
+  }
+
+  container.innerHTML = sorted.map((a,i) => `
+    <div class="top-offender-row">
+      <div class="top-offender-left">
+        <div style="font-size:12px;font-weight:800;color:${i<3?'#EF4444':'var(--muted)'};min-width:20px;">#${i+1}</div>
+        <div class="agent-avatar" style="width:28px;height:28px;font-size:10px;">${initials(a.name)}</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);">${a.name}</div>
+          <div style="font-size:10px;color:var(--muted);">${a.mins} min lost</div>
+        </div>
+      </div>
+      <span class="badge badge-danger">${a.count}</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════ WAIVE FLOW ═══════════
+function openWaiveModal(id) {
+  const r = currentData.find(x => x.id === id);
+  if (!r) return;
+  waiveTargetId = id;
+  document.getElementById('waive-preview').innerHTML = `
+    <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">${r.agent_name}</div>
+      <div style="font-size:12px;color:var(--muted);">
+        <strong class="${typeClass(r.deviation_type)}">${typeIcon(r.deviation_type)} ${r.deviation_type}</strong>
+        · ${formatDateShort(r.deviation_date)} · <strong>${r.deviation_minutes} min</strong>
+      </div>
+    </div>
+  `;
+  document.getElementById('waive-reason').value = '';
+  document.getElementById('waive-modal').classList.add('open');
+}
+
+function closeWaiveModal() {
+  document.getElementById('waive-modal').classList.remove('open');
+  waiveTargetId = null;
+}
+
+async function confirmWaive() {
+  const reason = document.getElementById('waive-reason').value.trim();
+  if (!reason) { showToast('Please enter a reason', 'warning'); return; }
+  if (!waiveTargetId) return;
+
+  try {
+    const { error } = await db.from('adherence_deviations').update({
+      is_waived:    true,
+      waived_by:    session?.username || 'Admin',
+      waived_at:    new Date().toISOString(),
+      waive_reason: reason,
+    }).eq('id', waiveTargetId);
+    if (error) throw error;
+
+    showToast('Deviation waived successfully', 'success');
+    closeWaiveModal();
+    await loadData();
+  } catch(e) { showToast('Failed: '+e.message, 'error'); }
+}
+
+function showWaiveDetails(id) {
+  const r = currentData.find(x => x.id === id);
+  if (!r) return;
+  openModal('Waive Details',
+    `Waived by: ${r.waived_by || '—'}\nAt: ${r.waived_at ? new Date(r.waived_at).toLocaleString() : '—'}\n\nReason:\n${r.waive_reason || '(no reason)'}`,
+    () => {}
+  );
+  document.getElementById('modal-confirm').style.display = 'none';
+  setTimeout(() => { document.getElementById('modal-confirm').style.display = 'inline-flex'; }, 100);
+}
+
+// ═══════════ ADD DEVIATION ═══════════
+function openAddModal() {
+  document.getElementById('add-agent').value    = '';
+  document.getElementById('add-date').value     = getToday();
+  document.getElementById('add-type').value     = 'Late Login';
+  document.getElementById('add-scheduled').value= '';
+  document.getElementById('add-actual').value   = '';
+  document.getElementById('add-minutes').value  = '';
+  document.getElementById('add-notes').value    = '';
+  onAddTypeChange();
+  document.getElementById('add-modal').classList.add('open');
+}
+
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+
+function onAddTypeChange() {
+  const t = document.getElementById('add-type').value;
+  const schedL = document.getElementById('add-sched-label');
+  const actualL= document.getElementById('add-actual-label');
+  const schedI = document.getElementById('add-scheduled');
+  const actualI= document.getElementById('add-actual');
+
+  if (t === 'Late Login' || t === 'Early Logout') {
+    schedL.innerText = 'Scheduled Time';
+    actualL.innerText = 'Actual Time';
+    schedI.placeholder = '09:00';
+    actualI.placeholder = '09:15';
+  } else if (t === 'Long Break' || t === 'Extra Break') {
+    schedL.innerText = 'Scheduled Duration';
+    actualL.innerText = 'Actual Duration';
+    schedI.placeholder = '15 min';
+    actualI.placeholder = '25 min';
+  } else if (t === 'Missed Shift') {
+    schedL.innerText = 'Scheduled Shift';
+    actualL.innerText = 'Status';
+    schedI.placeholder = '09:00 - 17:00';
+    actualI.placeholder = 'No-show';
+  }
+}
+
+async function saveDeviation() {
+  const agentId = document.getElementById('add-agent').value;
+  const date    = document.getElementById('add-date').value;
+  const type    = document.getElementById('add-type').value;
+  const sched   = document.getElementById('add-scheduled').value.trim();
+  const actual  = document.getElementById('add-actual').value.trim();
+  const mins    = parseInt(document.getElementById('add-minutes').value);
+  const notes   = document.getElementById('add-notes').value.trim();
+
+  if (!agentId) { showToast('Please select an agent','warning'); return; }
+  if (!date)    { showToast('Please select a date','warning'); return; }
+  if (isNaN(mins) || mins < 0) { showToast('Please enter deviation minutes','warning'); return; }
+
+  const agent = allAgents.find(a => a.id === agentId);
+  if (!agent) return;
+
+  try {
+    const { error } = await db.from('adherence_deviations').insert({
+      agent_id:          agentId,
+      agent_name:        agent.formal_name,
+      deviation_date:    date,
+      deviation_type:    type,
+      scheduled_value:   sched || null,
+      actual_value:      actual || null,
+      deviation_minutes: mins,
+      notes:             notes || null,
+      source:            'Manual',
+      created_by:        session?.username || 'Admin',
+    });
+    if (error) throw error;
+
+    showToast('Deviation added successfully', 'success');
+    closeAddModal();
+    await loadData();
+  } catch(e) { showToast('Failed: '+e.message, 'error'); }
+}
+
+// ═══════════ DELETE ═══════════
+function confirmDelete(id) {
+  const r = currentData.find(x => x.id === id);
+  if (!r) return;
+  openModal('Delete Deviation',
+    `Delete this ${r.deviation_type} deviation for ${r.agent_name}? This cannot be undone.`,
+    async () => {
+      try {
+        const { error } = await db.from('adherence_deviations').delete().eq('id', id);
+        if (error) throw error;
+        showToast('Deleted', 'warning');
+        await loadData();
+      } catch(e) { showToast('Failed: '+e.message, 'error'); }
+    }
+  );
+}
+
+// ── HELPERS ──
+function formatDateShort(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short' });
+}
+
+init();
+</script>
+</body>
+</html>
