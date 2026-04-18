@@ -228,7 +228,7 @@ let allShiftTypes = [];
 let breaksData    = {};
 let editRows      = {};
 let workingAgents = [];
-let _lastSchedules = []; // نحتفظ بالـ schedules عشان نبني الـ timeline
+let _lastSchedules = []; // keep schedules to build timeline
 
 document.getElementById('date-picker').value = getToday();
 
@@ -298,7 +298,7 @@ async function loadBreaks() {
       </tr>`;
     }).join('');
 
-    // render timeline تلقائياً
+    // render timeline automatically
     renderQueueTimeline();
 
   } catch(e) {
@@ -311,14 +311,14 @@ async function loadBreaks() {
 function renderQueueTimeline() {
   if (!_lastSchedules.length || !workingAgents.length) return;
 
-  // بناء agents list مع الأوقات
+  // based on agents list with times
   const agents = _lastSchedules.filter(s=>s.shift_types).map(s=>({
     id:        s.agent_id,
     startMins: timeToMins(s.shift_types.start_time),
     endMins:   timeToMins(s.shift_types.end_time),
   }));
 
-  // بناء break events من editRows
+  // based on break events from editRows
   const breakEvents = [];
   workingAgents.forEach(agent => {
     const r = editRows[agent.id];
@@ -346,7 +346,7 @@ function renderQueueTimeline() {
     return;
   }
 
-  // رتب بالوقت
+  // sort by time
   breakEvents.sort((a,b) => a.startMins - b.startMins);
 
   const maxAvail = agents.length;
@@ -354,15 +354,15 @@ function renderQueueTimeline() {
   let html       = '';
 
   breakEvents.forEach(ev => {
-    // كام agent available في وقت البريك ده
+    // how many agents available at break time 
     const avail = agents.filter(a => ev.startMins >= a.startMins && ev.startMins < a.endMins).length;
 
-    // كام agent على بريك في نفس الوقت (بما فيهم الـ agent ده)
+    // how many agents on break at same time (including this agent)
     const onBreak = breakEvents.filter(other =>
       other.agentId !== ev.agentId &&
       ev.startMins < other.startMins + other.dur &&
       ev.startMins + ev.dur > other.startMins
-    ).length + 1; // +1 للـ agent نفسه
+    ).length + 1; // +1 for agent itself
 
     const onQueue  = avail - onBreak;
     const minReq   = minCoverage(avail);
