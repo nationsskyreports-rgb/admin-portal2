@@ -176,7 +176,7 @@ const now = new Date();
 document.getElementById('month-filter').value = String(now.getMonth()+1).padStart(2,'0');
 
 const MONTH_NAMES = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
-const MAX_EXCUSES = 2; // الحد الأقصى في الشهر
+const MAX_EXCUSES = 2; // limit maximum in month
 
 let allAgents   = [];
 let allExcuses  = [];
@@ -293,7 +293,7 @@ async function approveExcuse(id, agentId, date) {
 const { data: sched, error: schedError } = await db.from('schedule')
   .select('day_type, shift_types(name,start_time,end_time)')
   .eq('agent_id', agentId).eq('shift_date', date)
-  .maybeSingle(); // ✅ بدل single — مش بيثرو error لو مفيش نتيجة
+  .maybeSingle(); // ✅ instead of single — throws error if no result
 
 if (schedError) {
   showToast('Failed to check schedule: ' + schedError.message, 'error');
@@ -367,7 +367,7 @@ async function deleteExcuse(id) {
   });
 }
 
-// ── ADD EXCUSE (Admin يضيف يدوي) ──
+// ── ADD EXCUSE (Admin manual add) ──
 function openAddPanel() {
   document.getElementById('panel-title').innerText = 'Add Excuse';
   document.getElementById('panel-body').innerHTML = `
@@ -421,7 +421,7 @@ async function addExcuse() {
     showToast('Agent already used maximum excuses this month!','error'); return;
   }
 
-  // ✅ تحقق من الـ schedule
+  // ✅ verify from the schedule
   const { data: sched, error: schedError } = await db.from('schedule')
     .select('day_type')
     .eq('agent_id', agentId)
