@@ -214,6 +214,36 @@
           </div>
         </div>
 
+        <!-- BREAK CHANGES REPORT -->
+        <div class="section-card fade-up" style="margin-top:16px;">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-coffee" style="color:var(--gold)"></i>
+              Break Changes Report
+              <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-right:8px;">— مقارنة المقرر بالفعلي</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="date" id="bc-from" class="form-input" style="width:140px;font-size:13px;">
+              <input type="date" id="bc-to"   class="form-input" style="width:140px;font-size:13px;">
+              <select id="bc-agent" class="form-input" style="width:160px;font-size:13px;">
+                <option value="">All Agents</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="loadBreakChanges()">
+                <i class="fas fa-search"></i> Load
+              </button>
+            </div>
+          </div>
+          <div class="section-body no-pad">
+            <div id="bc-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px;border-bottom:1px solid var(--border);"></div>
+            <div id="bc-table-wrap" style="overflow-x:auto;">
+              <div class="empty-state" style="padding:32px;">
+                <span class="empty-icon">☕</span>
+                اختار التاريخ واضغط Load
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -740,6 +770,172 @@ function formatDateShort(d) {
 }
 
 init();
+</script>
+<script>
+/* ══ BREAK CHANGES REPORT ══ */
+(function initBC() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+  const first = today.slice(0,7) + '-01';
+  document.getElementById('bc-from').value = first;
+  document.getElementById('bc-to').value   = today;
+  // ملأ قائمة الأجينتس
+  db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name')
+    .then(({ data }) => {
+      const sel = document.getElementById('bc-agent');
+      (data||[]).forEach(a => sel.add(new Option(a.formal_name, a.id)));
+    });
+})();
+
+async function loadBreakChanges() {
+  const from    = document.getElementById('bc-from').value;
+  const to      = document.getElementById('bc-to').value;
+  const agentF  = document.getElementById('bc-agent').value;
+  const wrap    = document.getElementById('bc-table-wrap');
+  const kpiWrap = document.getElementById('bc-kpis');
+  if (!from || !to) { showToast('اختار التاريخ','warning'); return; }
+
+  wrap.innerHTML    = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  kpiWrap.innerHTML = '';
+
+  try {
+    let q = db.from('breaks')
+      .select('agent_id, break_date, shift_time, break1, lunch, break2, scheduled_break1, scheduled_lunch, scheduled_break2, agents(formal_name)')
+      .gte('break_date', from)
+      .lte('break_date', to)
+      .not('scheduled_break1', 'is', null)
+      .order('break_date', { ascending: false });
+
+    if (agentF) q = q.eq('agent_id', agentF);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    // حساب الفروقات
+    function timeDiffMins(scheduled, actual) {
+      if (!scheduled || !actual) return 0;
+      const [sh, sm] = scheduled.substring(0,5).split(':').map(Number);
+      const [ah, am] = actual.substring(0,5).split(':').map(Number);
+      return (ah * 60 + am) - (sh * 60 + sm);
+    }
+
+    const THRESHOLD = 15; // دقائق
+
+    const rows = [];
+    (data || []).forEach(b => {
+      const name = b.agents?.formal_name || '—';
+      [
+        { type: 'Break 1', sched: b.scheduled_break1, actual: b.break1 },
+        { type: 'Lunch',   sched: b.scheduled_lunch,  actual: b.lunch  },
+        { type: 'Break 2', sched: b.scheduled_break2, actual: b.break2 },
+      ].forEach(br => {
+        const diff = timeDiffMins(br.sched, br.actual);
+        if (Math.abs(diff) > 0) {
+          rows.push({
+            agent:   name,
+            date:    b.break_date,
+            shift:   b.shift_time || '—',
+            type:    br.type,
+            sched:   br.sched ? br.sched.substring(0,5) : '—',
+            actual:  br.actual ? br.actual.substring(0,5) : '—',
+            diff,
+            flag:    Math.abs(diff) >= THRESHOLD,
+          });
+        }
+      });
+    });
+
+    // KPI Cards
+    const total   = rows.length;
+    const flagged = rows.filter(r => r.flag).length;
+    const ok      = total - flagged;
+    const agents  = [...new Set(rows.map(r => r.agent))].length;
+
+    kpiWrap.innerHTML = `
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">إجمالي التغييرات</div>
+        <div style="font-size:26px;font-weight:800;color:var(--gold);">${total}</div>
+      </div>
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">تجاوز ${THRESHOLD} دقيقة ⚠️</div>
+        <div style="font-size:26px;font-weight:800;color:#ef4444;">${flagged}</div>
+      </div>
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">تغييرات طفيفة ✅</div>
+        <div style="font-size:26px;font-weight:800;color:#10b981;">${ok}</div>
+      </div>
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">عدد الأجينتس</div>
+        <div style="font-size:26px;font-weight:800;color:var(--blue);">${agents}</div>
+      </div>`;
+
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="empty-state" style="padding:32px;"><span class="empty-icon">✅</span>مفيش تغييرات في الفترة دي</div>';
+      return;
+    }
+
+    // الجدول
+    let html = `<table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr>
+        <th>الأجينت</th><th>التاريخ</th><th>الشيفت</th><th>النوع</th>
+        <th>المقرر</th><th>الفعلي</th><th>الفرق</th><th>الحالة</th><th></th>
+      </tr></thead><tbody>`;
+
+    rows.forEach(r => {
+      const diffStr = r.diff > 0 ? `+${r.diff} دقيقة` : `${r.diff} دقيقة`;
+      const diffColor = r.diff > 0 ? '#f59e0b' : '#3b82f6';
+      const status = r.flag
+        ? '<span class="badge badge-danger">⚠️ تجاوز</span>'
+        : '<span class="badge badge-success">✅ طفيف</span>';
+      const addBtn = r.flag
+        ? `<button class="btn btn-warning btn-sm" onclick="addDeviationFromBreak('${r.agent}','${r.date}','${r.type}','${r.sched}','${r.actual}',${r.diff})" title="إضافة كـ Deviation">
+             <i class="fas fa-plus"></i> Deviation
+           </button>`
+        : '';
+      html += `<tr>
+        <td><strong>${r.agent}</strong></td>
+        <td>${r.date}</td>
+        <td style="font-size:12px;color:var(--text-muted);">${r.shift}</td>
+        <td>${r.type}</td>
+        <td style="font-family:monospace;">${r.sched}</td>
+        <td style="font-family:monospace;">${r.actual}</td>
+        <td style="color:${diffColor};font-weight:700;">${diffStr}</td>
+        <td>${status}</td>
+        <td>${addBtn}</td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+
+  } catch(e) {
+    wrap.innerHTML = `<div class="empty-state" style="padding:32px;color:var(--danger);">❌ ${e.message}</div>`;
+  }
+}
+
+async function addDeviationFromBreak(agentName, date, breakType, sched, actual, diffMins) {
+  const session = checkAuth();
+  const agentRes = await db.from('agents').select('id').eq('formal_name', agentName).single();
+  if (!agentRes.data) { showToast('Agent not found','error'); return; }
+
+  const confirmed = confirm(`إضافة Deviation لـ ${agentName}؟\n${breakType}: المقرر ${sched} — الفعلي ${actual} (${diffMins > 0 ? '+' : ''}${diffMins} دق)`);
+  if (!confirmed) return;
+
+  const { error } = await db.from('adherence_deviations').insert({
+    agent_id:          agentRes.data.id,
+    agent_name:        agentName,
+    deviation_date:    date,
+    deviation_type:    'Long Break',
+    scheduled_value:   sched,
+    actual_value:      actual,
+    deviation_minutes: Math.abs(diffMins),
+    notes:             `Break Change: ${breakType} — المقرر ${sched} تأخر لـ ${actual}`,
+    source:            'Auto-Break',
+    created_by:        session?.username || 'Admin',
+  });
+
+  if (error) { showToast('Failed: ' + error.message, 'error'); return; }
+  showToast('Deviation added ✅', 'success');
+}
 </script>
 </body>
 </html>
