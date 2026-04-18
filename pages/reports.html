@@ -498,98 +498,146 @@ async function copyReport() {
   const leads       = _callsData.filter(c=>_projReasons.includes(c.call_reason)).length;
   const bizPct    = total?(bizCalls/total*100).toFixed(1)+'%':'0%';
   const nonBizPct = total?(nonBizCalls/total*100).toFixed(1)+'%':'0%';
-  const topReasons = _sortedReasons.slice(0,8).map(e=>e[0]);
 
-  // Reason rows
-  const reasonRows = _sortedReasons.map(function(e,i){
-    var bg = i%2===0?'background:#fff;':'background:#f7f9fc;';
-    return '<tr style="'+bg+'"><td style="'+TD+'">'+e[0]+'</td><td style="'+TDR+'">'+e[1]+'</td><td style="'+TDPC+'">'+(total?(e[1]/total*100).toFixed(1)+'%':'0%')+'</td></tr>';
+  // Top reasons for daily table (max 8)
+  var topReasons = _sortedReasons.slice(0,8).map(function(e){return e[0];});
+
+  // ── Outlook-safe table styles ──
+  var S = {
+    hdrDate:  'background:#1E5E9E;color:#fff;font-family:Arial;font-size:10px;font-weight:700;padding:7px 10px;border:1px solid #1a5491;text-align:left;white-space:nowrap;width:75px;',
+    hdrReason:'background:#1E5E9E;color:#fff;font-family:Arial;font-size:10px;font-weight:700;padding:7px 6px;border:1px solid #1a5491;text-align:center;',
+    hdrTotal: 'background:#14477a;color:#fff;font-family:Arial;font-size:10px;font-weight:700;padding:7px 8px;border:1px solid #1a5491;text-align:center;white-space:nowrap;width:45px;',
+    celDate:  'font-family:Arial;font-size:10px;padding:6px 10px;border:1px solid #ddd;white-space:nowrap;font-weight:700;',
+    celNum:   'font-family:Arial;font-size:11px;padding:6px 4px;border:1px solid #ddd;text-align:center;font-weight:700;color:#1a1a1a;',
+    celDash:  'font-family:Arial;font-size:11px;padding:6px 4px;border:1px solid #ddd;text-align:center;color:#ccc;',
+    celTotal: 'font-family:Arial;font-size:11px;padding:6px 8px;border:1px solid #1E5E9E;text-align:center;font-weight:800;color:#1E5E9E;background:#eef3fb;',
+    footDate: 'background:#1E5E9E;color:#fff;font-family:Arial;font-size:10px;font-weight:700;padding:7px 10px;border:1px solid #1a5491;',
+    footNum:  'background:#eef3fb;font-family:Arial;font-size:11px;font-weight:800;padding:7px 4px;border:1px solid #1E5E9E;text-align:center;color:#1E5E9E;',
+    footTotal:'background:#1E5E9E;color:#fff;font-family:Arial;font-size:11px;font-weight:800;padding:7px 8px;border:1px solid #1a5491;text-align:center;',
+    mtdHdr:   'background:#1E5E9E;color:#fff;font-family:Arial;font-size:11px;font-weight:700;padding:8px 12px;border:1px solid #1a5491;',
+    mtdHdrR:  'background:#1E5E9E;color:#fff;font-family:Arial;font-size:11px;font-weight:700;padding:8px 12px;border:1px solid #1a5491;text-align:right;',
+    mtdCel:   'font-family:Arial;font-size:11px;padding:7px 12px;border:1px solid #ddd;',
+    mtdCelR:  'font-family:Arial;font-size:11px;padding:7px 12px;border:1px solid #ddd;text-align:right;font-weight:700;',
+    mtdFoot:  'background:#eef3fb;font-family:Arial;font-size:11px;font-weight:800;padding:8px 12px;border:1px solid #1E5E9E;',
+    mtdFootR: 'background:#eef3fb;font-family:Arial;font-size:11px;font-weight:800;padding:8px 12px;border:1px solid #1E5E9E;text-align:right;',
+  };
+
+  // ── MTD by Reason rows ──
+  var reasonRows = _sortedReasons.map(function(e,i){
+    var bg = i%2===0?'#ffffff':'#f4f7fb';
+    return '<tr bgcolor="'+bg+'"><td style="'+S.mtdCel+'">'+e[0]+'</td>'
+      +'<td style="'+S.mtdCelR+'">'+e[1]+'</td>'
+      +'<td style="'+S.mtdCelR+'color:#666;">'+(total?(e[1]/total*100).toFixed(1)+'%':'0%')+'</td></tr>';
   }).join('');
 
-  // Matrix rows
-  const agentNames = _sortedAgents.map(e=>e[0]);
-  const matrixHead = '<th style="'+TH+'">Agent</th>'
-    + topReasons.map(r=>'<th style="'+THC+'">'+r+'</th>').join('')
-    + '<th style="'+THC+'">Total</th>';
-  const matrixRows = agentNames.map(function(agent,i){
-    var bg = i%2===0?'background:#fff;':'background:#f7f9fc;';
-    const cells = topReasons.map(function(r){
-      const cnt = _callsData.filter(c=>c.agent_name===agent&&c.call_reason===r).length;
-      return '<td style="'+TDC+(cnt>0?'font-weight:700;color:#1a1a1a;':'color:#ccc;')+'"><b>'+(cnt>0?cnt:'—')+'</b></td>';
+  // ── Daily Detail rows ──
+  var dailyMap = {};
+  _callsData.forEach(function(c){
+    var day = c.logged_at && c.logged_at.split('T')[0];
+    if (!day) return;
+    if (!dailyMap[day]) dailyMap[day] = [];
+    dailyMap[day].push(c);
+  });
+  var sortedDays = Object.keys(dailyMap).sort();
+
+  var dailyHead = '<th style="'+S.hdrDate+'">Date</th>'
+    + topReasons.map(function(r){ return '<th style="'+S.hdrReason+'">'+r+'</th>'; }).join('')
+    + '<th style="'+S.hdrTotal+'">Total</th>';
+
+  var dailyRows = sortedDays.map(function(day,i){
+    var bg = i%2===0?'#ffffff':'#f4f7fb';
+    var dayCalls = dailyMap[day]||[];
+    var d   = new Date(day+'T00:00:00');
+    var fmt = d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
+    var cells = topReasons.map(function(r){
+      var cnt = dayCalls.filter(function(c){return c.call_reason===r;}).length;
+      return cnt>0
+        ? '<td style="'+S.celNum+'">'+cnt+'</td>'
+        : '<td style="'+S.celDash+'">—</td>';
     }).join('');
-    const t = _callsData.filter(c=>c.agent_name===agent).length;
-    return '<tr style="'+bg+'"><td style="'+TD+'font-weight:700;">'+agent+'</td>'+cells+'<td style="'+TDFC+'">'+t+'</td></tr>';
+    return '<tr bgcolor="'+bg+'"><td style="'+S.celDate+'">'+fmt+'</td>'+cells+'<td style="'+S.celTotal+'">'+dayCalls.length+'</td></tr>';
   }).join('');
-  const matrixTotals = topReasons.map(function(r){ return '<td style="'+TDFR+'text-align:center;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
 
-  // Daily rows
-  const dailyMap = {};
-  _callsData.forEach(function(c){ const day=c.logged_at&&c.logged_at.split('T')[0]; if(!day)return; if(!dailyMap[day])dailyMap[day]=[]; dailyMap[day].push(c); });
-  const sortedDays = Object.keys(dailyMap).sort();
-  const dailyHead = '<th style="'+TH+'">Date</th>'
-    + topReasons.map(r=>'<th style="'+THC+'">'+r+'</th>').join('')
-    + '<th style="'+THC+'">Total</th>';
-  const dailyRows = sortedDays.map(function(day,i){
-    var bg = i%2===0?'background:#fff;':'background:#f7f9fc;';
-    const dayCalls = dailyMap[day]||[];
-    const d = new Date(day+'T00:00:00');
-    const fmt = d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
-    const cells = topReasons.map(function(r){ const cnt=dayCalls.filter(c=>c.call_reason===r).length; return '<td style="'+TDC+(cnt>0?'font-weight:700;color:#1a1a1a;':'color:#ccc;')+'"><b>'+(cnt>0?cnt:'—')+'</b></td>'; }).join('');
-    return '<tr style="'+bg+'"><td style="'+TD+'font-weight:700;white-space:nowrap;">'+fmt+'</td>'+cells+'<td style="'+TDFC+'">'+dayCalls.length+'</td></tr>';
+  var dailyFootCells = topReasons.map(function(r){
+    return '<td style="'+S.footNum+'">'+_callsData.filter(function(c){return c.call_reason===r;}).length+'</td>';
   }).join('');
-  const dailyTotals = topReasons.map(function(r){ return '<td style="'+TDFR+'text-align:center;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
 
-  const generatedDate = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  var generatedDate = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
 
-  const html = '<div style="font-family:Arial,sans-serif;font-size:13px;max-width:950px;">'
-    + '<h2 style="color:#1E5E9E;margin-bottom:2px;font-size:18px;">Call Report — '+monthName+' '+year+'</h2>'
-    + '<p style="color:#888;margin-bottom:20px;font-size:12px;">Nations of Sky — Monthly Performance Report</p>'
+  var html = '<div style="font-family:Arial,sans-serif;font-size:12px;">'
 
-    + '<table style="width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:24px;"><tr>'
-    + '<td style="background:#1E5E9E;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+total+'</div><div style="font-size:11px;margin-top:4px;">Total Calls</div></td>'
-    + '<td style="background:#10b981;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+bizPct+'</div><div style="font-size:11px;margin-top:4px;">Business Related</div></td>'
-    + '<td style="background:#ef4444;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+nonBizPct+'</div><div style="font-size:11px;margin-top:4px;">Non-Business</div></td>'
-    + '<td style="background:#D4AF37;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+leads+'</div><div style="font-size:11px;margin-top:4px;">Project Leads</div></td>'
+    // Title
+    + '<h2 style="color:#1E5E9E;font-family:Arial;font-size:18px;margin:0 0 2px;">Call Report &#8212; '+monthName+' '+year+'</h2>'
+    + '<p style="color:#888;font-family:Arial;font-size:11px;margin:0 0 18px;">Nations of Sky &#8212; Generated: '+generatedDate+'</p>'
+
+    // Summary Cards
+    + '<table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;border-collapse:separate;border-spacing:8px;">'
+    + '<tr>'
+    + '<td width="130" bgcolor="#1E5E9E" style="background:#1E5E9E;padding:14px 16px;text-align:center;">'
+    +   '<div style="color:#fff;font-family:Arial;font-size:26px;font-weight:900;line-height:1;">'+total+'</div>'
+    +   '<div style="color:#cce4ff;font-family:Arial;font-size:9px;margin-top:5px;letter-spacing:1px;">TOTAL CALLS</div>'
+    + '</td>'
+    + '<td width="12"></td>'
+    + '<td width="130" bgcolor="#10b981" style="background:#10b981;padding:14px 16px;text-align:center;">'
+    +   '<div style="color:#fff;font-family:Arial;font-size:26px;font-weight:900;line-height:1;">'+bizPct+'</div>'
+    +   '<div style="color:#d1fae5;font-family:Arial;font-size:9px;margin-top:5px;letter-spacing:1px;">BUSINESS</div>'
+    + '</td>'
+    + '<td width="12"></td>'
+    + '<td width="130" bgcolor="#ef4444" style="background:#ef4444;padding:14px 16px;text-align:center;">'
+    +   '<div style="color:#fff;font-family:Arial;font-size:26px;font-weight:900;line-height:1;">'+nonBizPct+'</div>'
+    +   '<div style="color:#fecaca;font-family:Arial;font-size:9px;margin-top:5px;letter-spacing:1px;">NON-BUSINESS</div>'
+    + '</td>'
+    + '<td width="12"></td>'
+    + '<td width="130" bgcolor="#D4AF37" style="background:#D4AF37;padding:14px 16px;text-align:center;">'
+    +   '<div style="color:#fff;font-family:Arial;font-size:26px;font-weight:900;line-height:1;">'+leads+'</div>'
+    +   '<div style="color:#fef9e7;font-family:Arial;font-size:9px;margin-top:5px;letter-spacing:1px;">PROJECT LEADS</div>'
+    + '</td>'
     + '</tr></table>'
 
-    + '<h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">MTD — Calls by Reason</h3>'
-    + '<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:24px;font-size:12px;">'
-    + '<thead><tr><th style="padding:10px 12px;background:#1E5E9E;color:white;text-align:left;">Call Reason</th><th style="padding:10px 12px;background:#1E5E9E;color:white;text-align:right;">No. Calls</th><th style="padding:10px 12px;background:#1E5E9E;color:white;text-align:right;">%</th></tr></thead>'
+    // MTD by Reason
+    + '<p style="color:#1E5E9E;font-family:Arial;font-size:12px;font-weight:700;margin:0 0 6px;padding-bottom:4px;border-bottom:2px solid #1E5E9E;">MTD &#8212; Calls by Reason</p>'
+    + '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:24px;">'
+    + '<thead><tr>'
+    +   '<th style="'+S.mtdHdr+'width:240px;">Call Reason</th>'
+    +   '<th style="'+S.mtdHdrR+'width:80px;">No. Calls</th>'
+    +   '<th style="'+S.mtdHdrR+'width:60px;">%</th>'
+    + '</tr></thead>'
     + '<tbody>'+reasonRows+'</tbody>'
-    + '<tfoot><tr style="background:#f0f0f0;font-weight:800;"><td style="padding:10px 12px;">Grand Total</td><td style="padding:10px 12px;text-align:right;">'+total+'</td><td style="padding:10px 12px;text-align:right;">100%</td></tr></tfoot>'
+    + '<tfoot><tr>'
+    +   '<td style="'+S.mtdFoot+'">Grand Total</td>'
+    +   '<td style="'+S.mtdFootR+'">'+total+'</td>'
+    +   '<td style="'+S.mtdFootR+'">100%</td>'
+    + '</tr></tfoot>'
     + '</table>'
 
-    + '<h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Agent x Call Reason Matrix</h3>'
-    + '<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:24px;font-size:11px;">'
-    + '<thead><tr>'+matrixHead+'</tr></thead>'
-    + '<tbody>'+matrixRows+'</tbody>'
-    + '<tfoot><tr style="background:#f0f0f0;font-weight:800;"><td style="padding:8px 10px;">Total</td>'+matrixTotals+'<td style="padding:8px 10px;text-align:center;font-weight:800;">'+total+'</td></tr></tfoot>'
-    + '</table>'
-
-    + '<h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Daily Detail — '+monthName+' '+year+'</h3>'
-    + '<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:24px;font-size:11px;">'
+    // Daily Detail
+    + '<p style="color:#1E5E9E;font-family:Arial;font-size:12px;font-weight:700;margin:0 0 6px;padding-bottom:4px;border-bottom:2px solid #1E5E9E;">Daily Detail &#8212; '+monthName+' '+year+'</p>'
+    + '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:24px;">'
     + '<thead><tr>'+dailyHead+'</tr></thead>'
     + '<tbody>'+dailyRows+'</tbody>'
-    + '<tfoot><tr style="background:#f0f0f0;font-weight:800;"><td style="padding:8px 10px;">Total</td>'+dailyTotals+'<td style="padding:8px 10px;text-align:center;font-weight:800;">'+total+'</td></tr></tfoot>'
+    + '<tfoot><tr>'
+    +   '<td style="'+S.footDate+'">Total</td>'
+    +   dailyFootCells
+    +   '<td style="'+S.footTotal+'">'+total+'</td>'
+    + '</tr></tfoot>'
     + '</table>'
 
-    + '<p style="color:#aaa;font-size:11px;margin-top:16px;border-top:1px solid #eee;padding-top:12px;">Generated by NOS Admin Portal — '+generatedDate+'</p>'
+    + '<p style="color:#aaa;font-family:Arial;font-size:9px;margin-top:12px;border-top:1px solid #eee;padding-top:8px;">Nations of Sky Admin Portal</p>'
     + '</div>';
 
   try {
-    const blob = new Blob([html],{type:'text/html'});
-    const clipData = new ClipboardItem({'text/html':blob});
+    var blob = new Blob([html],{type:'text/html'});
+    var clipData = new ClipboardItem({'text/html':blob});
     await navigator.clipboard.write([clipData]);
 
-    // Open Outlook
-    const { data: managers } = await db.from('agents').select('email').in('role',['Manager','Admin']).eq('status','Active');
-    const toEmails = (managers||[]).filter(m=>m.email).map(m=>m.email.trim()).join(';');
-    const subject  = 'Call Report — '+monthName+' '+year;
+    var mgrsRes = await db.from('agents').select('email').in('role',['Manager','Admin']).eq('status','Active');
+    var toEmails = ((mgrsRes.data)||[]).filter(function(m){return m.email;}).map(function(m){return m.email.trim();}).join(';');
+    var subject  = 'Call Report \u2014 '+monthName+' '+year;
     window.open('mailto:'+(toEmails||'')+'?subject='+encodeURIComponent(subject));
 
-    showToast('Report copied! Paste in Outlook body','success');
+    showToast('\ud83d\udccb','Report copied!','Paste in Outlook body','success',4000);
   } catch(e) {
-    showToast('Copy failed: '+e.message,'error');
+    showToast('\u274c','Copy failed',e.message,'error',4000);
   }
 }
 
