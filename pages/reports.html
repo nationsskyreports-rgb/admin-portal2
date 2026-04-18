@@ -248,6 +248,16 @@ const CHART_COLORS = ['#D4AF37','#10B981','#3B82F6','#8B5CF6','#EF4444','#F59E0B
 const MONTH_NAMES  = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 
 let reasonChart, agentChart, trendChart, requestsChart;
+var TH  = 'padding:10px 14px;background:#1E5E9E;color:white;font-weight:700;font-size:12px;text-align:left;white-space:nowrap;';
+var THC = 'padding:10px 14px;background:#1E5E9E;color:white;font-weight:700;font-size:12px;text-align:center;white-space:nowrap;';
+var THR = 'padding:10px 14px;background:#1E5E9E;color:white;font-weight:700;font-size:12px;text-align:right;white-space:nowrap;';
+var TD  = 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;';
+var TDC = 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;text-align:center;';
+var TDR = 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;text-align:right;font-weight:700;';
+var TDPC= 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;text-align:right;color:#666;';
+var TDF = 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;';
+var TDFC= 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;text-align:center;color:#1E5E9E;';
+var TDFR= 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;text-align:right;';
 let _callsData = [], _projReasons = [], _sortedReasons = [], _sortedAgents = [];
 
 function switchTab(name, btn) {
