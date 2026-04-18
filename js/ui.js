@@ -160,6 +160,14 @@ function renderSidebar() {
         <i class="fas fa-sign-out-alt"></i> Sign Out
       </button>
     </div>`;
+
+  // Scroll active nav item into view automatically
+  const activeItem = aside.querySelector('.nav-item.active');
+  if (activeItem) {
+    setTimeout(() => {
+      activeItem.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }, 50);
+  }
 }
 
 // ═══════════════════════════════════════════
