@@ -213,7 +213,7 @@ async function loadData() {
       return { ...leave, agent_id: a.id, formal_name: a.formal_name, year: parseInt(year) };
     });
 
-    // حسب وحفظ total_used و remaining تلقائي
+    // calculate andsave total_used and remaining auto
     await autoSync();
 
     renderTable();
@@ -226,7 +226,7 @@ async function loadData() {
   }
 }
 
-// حسب وحفظ تلقائي من غير ما المستخدم يضغط حاجة
+// auto-calculate and save without user pressing anything
 async function autoSync() {
   for (const r of leaveData) {
     const total_used = MONTHS.reduce((s, m) => s + (r['used_' + m] || 0), 0);
@@ -240,7 +240,7 @@ async function autoSync() {
         updated_at: new Date().toISOString()
       }).eq('id', r.id);
     } else {
-      // insert لو مفيش record
+      // insert if no record exists
       await db.from('annual_leave').insert({
         agent_id: r.agent_id,
         agent_name: r.formal_name,
@@ -289,7 +289,7 @@ function renderTable() {
   }).join('');
 }
 
-// لما يغير Entitlement أو Carry Over — يحفظ تلقائي
+// when Entitlement or Carry Over changes — auto save
 async function saveEntCo(i) {
   const r   = leaveData[i];
   if (!r.id) return;
