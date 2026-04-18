@@ -324,7 +324,7 @@ function copyKPIReport() {
       <thead>
         <tr style="background:#1E5E9E;color:white;text-align:center;">
           <th>Name</th><th>Conf%</th><th>Missing</th><th>Net Missing</th><th>AHT</th>
-          <th>Calls</th><th>Excuses</th><th>Quality</th>
+          <th>Calls</th><th>Excuses</th><th>Adherence</th><th>Quality</th>
           <th>Remaining Annual</th><th>Used MTD</th><th>Used YTD</th>
         </tr>
       </thead>
@@ -781,20 +781,32 @@ async function sendToAll() {
   const year    = document.getElementById('year-filter').value;
   const reports = buildReportData();
 
-  // ← all emails in TO
   const allEmails = reports
     .filter(r => r.email && r.email.trim() !== '' && r.email !== 'no email')
     .map(r => r.email.trim())
     .join(';');
 
-  if (!allEmails) {
-    showToast('No valid emails found!', 'error');
-    return;
-  }
+  if (!allEmails) { showToast('No valid emails found!', 'error'); return; }
+
+  // جيب CC من المانجيرز والأدمن من جدول agents
+  let ccEmails = '';
+  try {
+    const { data: managers } = await db
+      .from('agents')
+      .select('email, role')
+      .in('role', ['Manager', 'Admin', 'manager', 'admin'])
+      .eq('status', 'Active');
+
+    ccEmails = (managers || [])
+      .filter(m => m.email && m.email.trim() !== '')
+      .map(m => m.email.trim())
+      .join(';');
+  } catch(e) { console.warn('Could not load CC emails:', e); }
 
   const subject = `KPI Report — ${month} ${year}`;
+  const mailtoUrl = `mailto:${allEmails}?subject=${encodeURIComponent(subject)}${ccEmails ? '&cc=' + ccEmails : ''}`;
 
-  window.open(`mailto:${allEmails}?subject=${encodeURIComponent(subject)}`);
+  window.open(mailtoUrl);
   showToast('Email opened!', 'success');
 }
   
