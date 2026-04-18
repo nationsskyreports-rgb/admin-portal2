@@ -573,7 +573,7 @@ async function submitReview() {
 }
 
 async function updateQualityScore(agentId, agentName, month, year, pct) {
-  // جيب كل الـ reviews للموظف في الشهر ده واحسب المتوسط
+  // get all the reviews and in month  andcalculate and
   const { data } = await db.from('quality_reviews')
     .select('percentage')
     .eq('agent_id', agentId)
@@ -618,7 +618,7 @@ async function loadReviews() {
 
   const monthName = MONTH_NAMES[parseInt(month)];
 
-  // جيب من الاتنين
+  // get from both
   let [reviewsRes, scoresRes] = await Promise.all([
     db.from('quality_reviews').select('*')
       .eq('month', monthName).eq('year', year)
@@ -636,7 +636,7 @@ async function loadReviews() {
     scoresData  = scoresData.filter(s => s.agent_id === agentF);
   }
 
-  // حول الـ scores لنفس format الـ reviews
+  // handle scores in same format as reviews
   const scoresAsRows = scoresData
     .filter(s => !reviewsData.find(r => r.agent_id === s.agent_id))
     .map(s => ({
