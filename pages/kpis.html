@@ -114,12 +114,14 @@
                     <th class="agent-col" rowspan="2">Agent</th>
                     <th class="th-group" colspan="5">📊 Performance</th>
                     <th class="th-group" colspan="1" style="background:rgba(245,158,11,0.1)!important;color:#F59E0B!important;">⏱ Exceptions</th>
+                    <th class="th-group" colspan="1" style="background:rgba(239,68,68,0.1)!important;color:#EF4444!important;">🎯 Adherence</th>
                     <th class="th-group" colspan="1" style="background:rgba(236,72,153,0.1)!important;color:#EC4899!important;">⭐ Quality</th>
                     <th class="th-annual" colspan="3">🏖️ Annual</th>
                   </tr>
                   <tr>
                     <th>Conformance</th><th>Missing Time</th><th>AHT</th>
                     <th>Calls</th><th>Net Missing</th><th>Excuses</th>
+                    <th>Deviations</th>
                     <th>Score</th>
                     <th class="th-annual">Remaining</th>
                     <th class="th-annual">Used MTD</th>
@@ -436,17 +438,19 @@ async function loadKPIs(monthName, year) {
     const lastDay  = new Date(year, parseInt(month), 0).getDate();
     const dateTo   = year+'-'+month+'-'+String(lastDay).padStart(2,'0');
 
-    const [perfRes, excusesRes, annualRes, qualityRes] = await Promise.all([
+    const [perfRes, excusesRes, annualRes, qualityRes, adherenceRes] = await Promise.all([
       db.from('daily_performance').select('agent_id,agent_name,conformance,missing_sec,active_sec,target_sec,avg_aht,calls').gte('perf_date',dateFrom).lte('perf_date',dateTo),
       db.from('excuses').select('*').eq('status','Approved').gte('excuse_date',dateFrom).lte('excuse_date',dateTo),
       db.from('annual_leave').select('*').eq('year',year),
       db.from('quality_scores').select('*').eq('month',monthName).eq('year',year),
+      db.from('adherence_deviations').select('agent_id,is_waived').gte('deviation_date',dateFrom).lte('deviation_date',dateTo),
     ]);
 
-    const perfData    = perfRes.data    || [];
-    const excusesData = excusesRes.data || [];
-    const annData     = annualRes.data  || [];
-    const qualityData = qualityRes.data || [];
+    const perfData      = perfRes.data      || [];
+    const excusesData   = excusesRes.data   || [];
+    const annData       = annualRes.data    || [];
+    const qualityData   = qualityRes.data   || [];
+    const adherenceData = adherenceRes.data || [];
     kpiData = qualityData;
 
     tbody.innerHTML = allAgents.map(agent => {
@@ -495,6 +499,14 @@ async function loadKPIs(monthName, year) {
         '<td style="font-weight:700;">'+totalCalls+'</td>'+
         '<td style="font-size:11px;color:'+(netMissing==='Full Time'?'#10B981':'#EF4444')+';font-weight:700;">'+netMissing+'</td>'+
         '<td style="color:#F59E0B;font-weight:700;">'+excStr+'</td>'+
+        (function(){
+          const devs    = adherenceData.filter(d=>d.agent_id===agent.id);
+          const active  = devs.filter(d=>!d.is_waived).length;
+          const waived  = devs.filter(d=>d.is_waived).length;
+          const total   = devs.length;
+          if (!total) return '<td style="color:#10B981;font-weight:700;">Clean</td>';
+          return '<td style="font-weight:700;"><span style="color:#EF4444;">'+active+' active</span>'+(waived?' <span style="color:#94a3b8;font-size:11px;">('+waived+' waived)</span>':'')+' </td>';
+        })()+
         '<td><input class="editable-cell" type="text" value="'+(quality?.score||'')+'" placeholder="—" onchange="markEdit(\''+agent.id+'\',\'score\',this.value)" style="color:var(--gold);font-weight:700;"></td>'+
         '<td><span class="badge '+(typeof annLeft==='number'&&annLeft<=3?'badge-danger':'badge-success')+'">'+(typeof annLeft==='number'?annLeft+' days':annLeft)+'</span></td>'+
         '<td style="font-weight:700;">'+annUsedMTD+' days</td>'+
@@ -772,7 +784,7 @@ async function sendToAll() {
   const allEmails = reports
     .filter(r => r.email && r.email.trim() !== '' && r.email !== 'no email')
     .map(r => r.email.trim())
-    .join(',');
+    .join(';');
 
   if (!allEmails) {
     showToast('No valid emails found!', 'error');
@@ -781,9 +793,7 @@ async function sendToAll() {
 
   const subject = `KPI Report — ${month} ${year}`;
 
-  // ← TO filled + subject + Body empty
-  window.open(`mailto:${encodeURIComponent(allEmails)}?subject=${encodeURIComponent(subject)}`);
-  
+  window.open(`mailto:${allEmails}?subject=${encodeURIComponent(subject)}`);
   showToast('Email opened!', 'success');
 }
   
