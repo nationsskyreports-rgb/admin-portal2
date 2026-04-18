@@ -21,7 +21,7 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
 }
 function openPanel(title) {
-  document.getElementById('panel-title').innerText = title;
+  if (title !== undefined) document.getElementById('panel-title').innerText = title;
   document.getElementById('panel-overlay').classList.add('open');
   document.getElementById('slide-panel').classList.add('open');
 }
