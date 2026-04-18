@@ -81,6 +81,7 @@
         <button class="report-tab" onclick="switchTab('daily',this)">📅 Daily Breakdown</button>
         <button class="report-tab" onclick="switchTab('kpi',this)">📊 Agent KPIs</button>
         <button class="report-tab" onclick="switchTab('requests',this)">📋 Requests</button>
+        <button class="report-tab" onclick="switchTab('ai',this)">🤖 AI Report</button>
       </div>
 
       <!-- TAB: CALLS BY REASON -->
@@ -218,6 +219,35 @@
                 <thead><tr><th>Type</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Approved</th><th style="text-align:right;">Rejected</th></tr></thead>
                 <tbody id="requests-table"></tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: AI REPORT -->
+      <div class="report-section" id="section-ai">
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title"><i class="fas fa-robot" style="color:var(--gold)"></i> AI Performance Report</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary btn-sm" id="btn-daily" onclick="generateAIReport('daily')">
+                <i class="fas fa-calendar-day"></i> Daily Report
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-monthly" onclick="generateAIReport('monthly')">
+                <i class="fas fa-calendar-alt"></i> Monthly Report
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-copy-ai" onclick="copyAIReport()" style="display:none;">
+                <i class="fas fa-copy"></i> Copy
+              </button>
+            </div>
+          </div>
+          <div class="section-body">
+            <div id="ai-output" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;">
+              <div style="text-align:center;">
+                <div style="font-size:40px;margin-bottom:12px;">🤖</div>
+                <div style="font-weight:700;margin-bottom:6px;">AI Report Generator</div>
+                <div style="font-size:12px;">Click Daily or Monthly to generate an AI-powered report</div>
+              </div>
             </div>
           </div>
         </div>
@@ -567,6 +597,152 @@ function drawDoughnut(id,labels,data,instance,setter,colors){if(instance)instanc
 function drawBar(id,labels,data,instance,setter){if(instance)instance.destroy();const ctx=document.getElementById(id);if(!ctx)return;setter(new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:CHART_COLORS,borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'rgba(212,175,55,0.08)'},beginAtZero:true}}}}));}
 function drawLine(id,labels,data,instance,setter){if(instance)instance.destroy();const ctx=document.getElementById(id);if(!ctx)return;setter(new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:'#D4AF37',backgroundColor:'rgba(212,175,55,0.08)',fill:true,tension:0.4,pointBackgroundColor:'#D4AF37',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'rgba(212,175,55,0.08)'},beginAtZero:true}}}}));}
 function secToTime(s){if(!s&&s!==0)return '—';return Math.floor(s/3600).toString().padStart(2,'0')+':'+Math.floor((s%3600)/60).toString().padStart(2,'0')+':'+Math.floor(s%60).toString().padStart(2,'0');}
+
+
+const WORKER_URL = 'https://nos-ai-report.nations-sky-reports.workers.dev/';
+let _aiText = '';
+
+async function generateAIReport(type) {
+  const month     = document.getElementById('month-filter').value;
+  const year      = parseInt(document.getElementById('year-filter').value);
+  const monthName = MONTH_NAMES[parseInt(month)];
+  const today     = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+  const btn       = document.getElementById(type === 'daily' ? 'btn-daily' : 'btn-monthly');
+  const output    = document.getElementById('ai-output');
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+  document.getElementById('btn-copy-ai').style.display = 'none';
+  output.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner" style="margin:0 auto 12px;"></div><div style="color:var(--muted);font-size:13px;">AI is analyzing your data...</div></div>';
+
+  try {
+    let prompt = '';
+
+    if (type === 'daily') {
+      const [callsRes, breaksRes, schedRes, adherenceRes] = await Promise.all([
+        db.from('call_logs').select('call_reason,agent_name,business_relativity').gte('logged_at',today+'T00:00:00').lte('logged_at',today+'T23:59:59'),
+        db.from('breaks').select('agent_id,break1,lunch,break2,scheduled_break1,scheduled_lunch,scheduled_break2,agents(formal_name)').eq('break_date',today),
+        db.from('schedule').select('agent_id,day_type,agents(formal_name)').eq('shift_date',today),
+        db.from('adherence_deviations').select('agent_name,deviation_type,deviation_minutes,is_waived').eq('deviation_date',today),
+      ]);
+
+      const calls     = callsRes.data||[];
+      const schedule  = schedRes.data||[];
+      const adherence = adherenceRes.data||[];
+      const working   = schedule.filter(s=>s.day_type==='Work').map(s=>s.agents?.formal_name).filter(Boolean);
+      const total     = calls.length;
+      const biz       = calls.filter(c=>c.business_relativity==='Business Related').length;
+
+      const reasonMap = {};
+      calls.forEach(c=>{const k=c.call_reason||'Unknown';reasonMap[k]=(reasonMap[k]||0)+1;});
+      const agentMap = {};
+      calls.forEach(c=>{const k=c.agent_name||'Unknown';agentMap[k]=(agentMap[k]||0)+1;});
+
+      prompt = 'You are a professional call center analyst for Nations of Sky real estate company. Write a concise daily performance report in English.
+
+'
+        + 'Date: ' + today + '
+'
+        + 'Working Agents: ' + (working.join(', ')||'None') + '
+'
+        + 'Total Calls: ' + total + '
+'
+        + 'Business Related: ' + biz + ' (' + (total?(biz/total*100).toFixed(1):'0') + '%)
+'
+        + 'Calls by Reason: ' + Object.entries(reasonMap).sort((a,b)=>b[1]-a[1]).map(e=>e[0]+': '+e[1]).join(', ') + '
+'
+        + 'Calls by Agent: ' + Object.entries(agentMap).sort((a,b)=>b[1]-a[1]).map(e=>e[0]+': '+e[1]).join(', ') + '
+'
+        + 'Adherence Issues: ' + (adherence.length?adherence.map(a=>a.agent_name+' - '+a.deviation_type).join(', '):'None') + '
+
+'
+        + 'Write sections: Summary, Call Performance, Agent Performance, Compliance, Recommendations.';
+
+    } else {
+      const dateFrom = year+'-'+month+'-01';
+      const lastDay  = new Date(year,parseInt(month),0).getDate();
+      const dateTo   = year+'-'+month+'-'+String(lastDay).padStart(2,'0');
+
+      const [callsRes, perfRes, adherenceRes] = await Promise.all([
+        db.from('call_logs').select('call_reason,agent_name,business_relativity').gte('logged_at',dateFrom+'T00:00:00').lte('logged_at',dateTo+'T23:59:59'),
+        db.from('daily_performance').select('agent_id,conformance,calls,agents(formal_name)').gte('perf_date',dateFrom).lte('perf_date',dateTo),
+        db.from('adherence_deviations').select('agent_name,deviation_type,is_waived').gte('deviation_date',dateFrom).lte('deviation_date',dateTo),
+      ]);
+
+      const calls     = callsRes.data||[];
+      const perf      = perfRes.data||[];
+      const adherence = adherenceRes.data||[];
+      const total     = calls.length;
+      const biz       = calls.filter(c=>c.business_relativity==='Business Related').length;
+
+      const reasonMap = {};
+      calls.forEach(c=>{const k=c.call_reason||'Unknown';reasonMap[k]=(reasonMap[k]||0)+1;});
+
+      const agentMap = {};
+      perf.forEach(p=>{
+        const name=p.agents?.formal_name||p.agent_id;
+        if(!agentMap[name])agentMap[name]={conf:[],calls:0};
+        agentMap[name].conf.push(parseFloat(p.conformance||0));
+        agentMap[name].calls+=p.calls||0;
+      });
+
+      prompt = 'You are a professional call center analyst for Nations of Sky real estate company. Write a comprehensive monthly performance report in English.
+
+'
+        + 'Month: ' + monthName + ' ' + year + '
+'
+        + 'Total Calls: ' + total + '
+'
+        + 'Business Related: ' + biz + ' (' + (total?(biz/total*100).toFixed(1):'0') + '%)
+'
+        + 'Top Reasons: ' + Object.entries(reasonMap).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>e[0]+': '+e[1]).join(', ') + '
+'
+        + 'Agent Performance: ' + Object.entries(agentMap).map(([name,d])=>name+' (Conf: '+(d.conf.length?(d.conf.reduce((a,b)=>a+b,0)/d.conf.length).toFixed(1):0)+'%, Calls: '+d.calls+')').join(', ') + '
+'
+        + 'Active Deviations: ' + adherence.filter(a=>!a.is_waived).length + ', Waived: ' + adherence.filter(a=>a.is_waived).length + '
+
+'
+        + 'Write sections: Executive Summary, Call Analysis, Agent Performance, Adherence & Compliance, Strategic Recommendations.';
+    }
+
+    const res  = await fetch(WORKER_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt}) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _aiText = data.text;
+
+    const lines = _aiText.split('\n');
+    let html = '';
+    for (const line of lines) {
+      if (line.startsWith('## '))      html += '<h3 style="color:var(--text);margin:16px 0 6px;font-size:14px;border-bottom:1px solid var(--border);padding-bottom:4px;">'+line.slice(3)+'</h3>';
+      else if (line.startsWith('### ')) html += '<h4 style="color:var(--gold);margin:12px 0 4px;font-size:13px;">'+line.slice(4)+'</h4>';
+      else if (line.startsWith('**'))  html += '<p style="margin:4px 0;line-height:1.7;color:var(--text);font-weight:700;">'+line.replace(/\*\*/g,'')+'</p>';
+      else if (line.startsWith('- '))  html += '<li style="margin:3px 0;color:var(--text);">'+line.slice(2)+'</li>';
+      else if (line === '')            html += '<br>';
+      else html += '<p style="margin:4px 0;line-height:1.7;color:var(--text);">'+line+'</p>';
+    }
+
+    output.innerHTML = '<div style="font-size:13px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:20px;">🤖</span>'
+      + '<div><div style="font-weight:800;">'+( type==='daily'?'Daily':'Monthly')+' AI Report</div>'
+      + '<div style="font-size:11px;color:var(--muted);">Generated by Gemini AI</div></div></div>'
+      + html + '</div>';
+
+    document.getElementById('btn-copy-ai').style.display = 'flex';
+
+  } catch(e) {
+    output.innerHTML = '<div style="text-align:center;color:#ef4444;padding:40px;">❌ '+e.message+'</div>';
+    showToast('Failed: '+e.message,'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = type==='daily'?'<i class="fas fa-calendar-day"></i> Daily Report':'<i class="fas fa-calendar-alt"></i> Monthly Report';
+  }
+}
+
+function copyAIReport() {
+  if (!_aiText) return;
+  navigator.clipboard.writeText(_aiText).then(()=>showToast('Copied!','success'));
+}
 
 loadAll();
 </script>
