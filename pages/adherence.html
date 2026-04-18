@@ -220,7 +220,7 @@
             <div class="section-title">
               <i class="fas fa-coffee" style="color:var(--gold)"></i>
               Break Changes Report
-              <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-right:8px;">— مقارنة المقرر بالفعلي</span>
+              <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-right:8px;">— Scheduled vs Actual</span>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <input type="date" id="bc-from" class="form-input" style="width:140px;font-size:13px;">
@@ -238,7 +238,7 @@
             <div id="bc-table-wrap" style="overflow-x:auto;">
               <div class="empty-state" style="padding:32px;">
                 <span class="empty-icon">☕</span>
-                اختار التاريخ واضغط Load
+                Select date range and click Load
               </div>
             </div>
           </div>
@@ -548,8 +548,8 @@ function renderKPIs(data) {
   const totalMins     = data.reduce((s,r) => s + (r.deviation_minutes||0), 0);
   const netLostMins   = data.filter(r => !r.is_waived).reduce((s,r) => s + (r.deviation_minutes||0), 0);
 
-  // Adherence % = (1 - active/total) * 100 مبسطة — أفضل نحسب بنظام Net: كل deviation بتنقص نقطة، waive بيرجعها
-  // للبساطة نستخدم: Net Adherence = active / total inverted
+  // Adherence % = (1 - active/total) * 100 — Net: each deviation reduces score, waive restores it
+  // Net Adherence = active / total inverted
   const adherencePct = total > 0 ? Math.max(0, 100 - (active / total) * 100) : 100;
 
   // Most common
@@ -778,7 +778,7 @@ init();
   const first = today.slice(0,7) + '-01';
   document.getElementById('bc-from').value = first;
   document.getElementById('bc-to').value   = today;
-  // ملأ قائمة الأجينتس
+  // Populate agents dropdown
   db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name')
     .then(({ data }) => {
       const sel = document.getElementById('bc-agent');
@@ -792,7 +792,7 @@ async function loadBreakChanges() {
   const agentF  = document.getElementById('bc-agent').value;
   const wrap    = document.getElementById('bc-table-wrap');
   const kpiWrap = document.getElementById('bc-kpis');
-  if (!from || !to) { showToast('اختار التاريخ','warning'); return; }
+  if (!from || !to) { showToast('Select date range','warning'); return; }
 
   wrap.innerHTML    = '<div class="loading-wrap"><div class="spinner"></div></div>';
   kpiWrap.innerHTML = '';
@@ -810,7 +810,7 @@ async function loadBreakChanges() {
     const { data, error } = await q;
     if (error) throw error;
 
-    // حساب الفروقات
+    // Calculate differences
     function timeDiffMins(scheduled, actual) {
       if (!scheduled || !actual) return 0;
       const [sh, sm] = scheduled.substring(0,5).split(':').map(Number);
@@ -818,7 +818,7 @@ async function loadBreakChanges() {
       return (ah * 60 + am) - (sh * 60 + sm);
     }
 
-    const THRESHOLD = 15; // دقائق
+    const THRESHOLD = 15; // minutes
 
     const rows = [];
     (data || []).forEach(b => {
@@ -852,42 +852,42 @@ async function loadBreakChanges() {
 
     kpiWrap.innerHTML = `
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">إجمالي التغييرات</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Total Changes</div>
         <div style="font-size:26px;font-weight:800;color:var(--gold);">${total}</div>
       </div>
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">تجاوز ${THRESHOLD} دقيقة ⚠️</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Over limit ${THRESHOLD} min ⚠️</div>
         <div style="font-size:26px;font-weight:800;color:#ef4444;">${flagged}</div>
       </div>
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">تغييرات طفيفة ✅</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">✅ Minor Changes</div>
         <div style="font-size:26px;font-weight:800;color:#10b981;">${ok}</div>
       </div>
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">عدد الأجينتس</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Agents</div>
         <div style="font-size:26px;font-weight:800;color:var(--blue);">${agents}</div>
       </div>`;
 
     if (!rows.length) {
-      wrap.innerHTML = '<div class="empty-state" style="padding:32px;"><span class="empty-icon">✅</span>مفيش تغييرات في الفترة دي</div>';
+      wrap.innerHTML = '<div class="empty-state" style="padding:32px;"><span class="empty-icon">✅</span>No changes found in this period</div>';
       return;
     }
 
-    // الجدول
+    // Table
     let html = `<table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px;">
       <thead><tr>
-        <th>الأجينت</th><th>التاريخ</th><th>الشيفت</th><th>النوع</th>
-        <th>المقرر</th><th>الفعلي</th><th>الفرق</th><th>الحالة</th><th></th>
+        <th>Agent</th><th>Date</th><th>Shift</th><th>Type</th>
+        <th>Scheduled</th><th>Actual</th><th>Diff</th><th>Status</th><th></th>
       </tr></thead><tbody>`;
 
     rows.forEach(r => {
-      const diffStr = r.diff > 0 ? `+${r.diff} دقيقة` : `${r.diff} دقيقة`;
+      const diffStr = r.diff > 0 ? `+${r.diff} min` : `${r.diff} min`;
       const diffColor = r.diff > 0 ? '#f59e0b' : '#3b82f6';
       const status = r.flag
-        ? '<span class="badge badge-danger">⚠️ تجاوز</span>'
-        : '<span class="badge badge-success">✅ طفيف</span>';
+        ? '<span class="badge badge-danger">⚠️ Over limit</span>'
+        : '<span class="badge badge-success">✅ Minor</span>';
       const addBtn = r.flag
-        ? `<button class="btn btn-warning btn-sm" onclick="addDeviationFromBreak('${r.agent}','${r.date}','${r.type}','${r.sched}','${r.actual}',${r.diff})" title="إضافة كـ Deviation">
+        ? `<button class="btn btn-warning btn-sm" onclick="addDeviationFromBreak('${r.agent}','${r.date}','${r.type}','${r.sched}','${r.actual}',${r.diff})" title="Add as Deviation">
              <i class="fas fa-plus"></i> Deviation
            </button>`
         : '';
@@ -917,7 +917,7 @@ async function addDeviationFromBreak(agentName, date, breakType, sched, actual, 
   const agentRes = await db.from('agents').select('id').eq('formal_name', agentName).single();
   if (!agentRes.data) { showToast('Agent not found','error'); return; }
 
-  const confirmed = confirm(`إضافة Deviation لـ ${agentName}؟\n${breakType}: المقرر ${sched} — الفعلي ${actual} (${diffMins > 0 ? '+' : ''}${diffMins} دق)`);
+  const confirmed = confirm(`Add Deviation for ${agentName}?\n${breakType}: Scheduled ${sched} — Actual ${actual} (${diffMins > 0 ? '+' : ''}${diffMins} min)`);
   if (!confirmed) return;
 
   const { error } = await db.from('adherence_deviations').insert({
@@ -928,7 +928,7 @@ async function addDeviationFromBreak(agentName, date, breakType, sched, actual, 
     scheduled_value:   sched,
     actual_value:      actual,
     deviation_minutes: Math.abs(diffMins),
-    notes:             `Break Change: ${breakType} — المقرر ${sched} تأخر لـ ${actual}`,
+    notes:             `Break Change: ${breakType} — Scheduled ${sched} → Actual ${actual}`,
     source:            'Auto-Break',
     created_by:        session?.username || 'Admin',
   });
