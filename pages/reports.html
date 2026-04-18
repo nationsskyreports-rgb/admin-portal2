@@ -918,20 +918,16 @@ Write a structured report with sections: Executive Summary, Monthly Highlights, 
     _aiReportText = text;
 
     // Render nicely
-    const formatted = text
-      .replace(/^### (.+)$/gm, '<h4 style="color:var(--gold);margin:16px 0 6px;font-size:14px;">$1</h4>')
-      .replace(/^## (.+)$/gm,  '<h3 style="color:var(--text);margin:20px 0 8px;font-size:15px;border-bottom:1px solid var(--border);padding-bottom:6px;">$1</h3>')
-      .replace(/^# (.+)$/gm,   '<h2 style="color:var(--gold);margin:0 0 16px;font-size:17px;">$1</h2>')
-      .replace(/^\*\*(.+)\*\*$/gm, '<strong>$1</strong>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/^- (.+)$/gm,   '<li style="margin:4px 0;color:var(--text);">$1</li>')
-      .replace(/(<li.*<\/li>
-?)+/g, '<ul style="margin:8px 0 8px 16px;padding:0;">$&</ul>')
-      .replace(/
-
-/g, '</p><p style="margin:8px 0;line-height:1.7;color:var(--text);">')
-      .replace(/
-/g, '<br>');
+    const lines = text.split('\n');
+    let formatted = '';
+    for (const line of lines) {
+      if (line.startsWith('### ')) formatted += `<h4 style="color:var(--gold);margin:16px 0 4px;font-size:13px;font-weight:800;">${line.slice(4)}</h4>`;
+      else if (line.startsWith('## ')) formatted += `<h3 style="color:var(--text);margin:18px 0 6px;font-size:14px;border-bottom:1px solid var(--border);padding-bottom:4px;">${line.slice(3)}</h3>`;
+      else if (line.startsWith('# '))  formatted += `<h2 style="color:var(--gold);margin:0 0 12px;font-size:16px;">${line.slice(2)}</h2>`;
+      else if (line.startsWith('- '))  formatted += `<li style="margin:3px 0;color:var(--text);">${line.slice(2).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</li>`;
+      else if (line === '')            formatted += '<br>';
+      else formatted += `<p style="margin:4px 0;line-height:1.7;color:var(--text);">${line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</p>`;
+    }
 
     output.innerHTML = `
       <div style="font-size:13px;line-height:1.7;">
