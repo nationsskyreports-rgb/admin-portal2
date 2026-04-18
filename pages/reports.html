@@ -10,33 +10,26 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-.report-tabs { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
-.report-tab { padding:8px 18px; border-radius:20px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; transition:.15s; }
-.report-tab.active { background:var(--gold); color:#000; border-color:var(--gold); }
-.report-section { display:none; }
-.report-section.active { display:block; }
-.stat-table { width:100%; border-collapse:collapse; font-size:13px; }
-.stat-table th { background:rgba(212,175,55,0.08); color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); }
-.stat-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.03); }
-.stat-table tr:hover td { background:rgba(255,255,255,0.02); }
-.stat-table tr:last-child td { border-bottom:none; }
-.stat-table .num { font-weight:800; font-size:14px; text-align:right; }
-.stat-table .pct { font-size:11px; color:var(--muted); text-align:right; }
-.stat-bar-wrap { background:var(--border); border-radius:4px; height:6px; width:100px; display:inline-block; vertical-align:middle; margin-right:8px; }
-.stat-bar { height:6px; border-radius:4px; background:var(--gold); }
-.send-btn { background:linear-gradient(135deg,#D4AF37,#F4D03F); color:#000; border:none; padding:10px 20px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px; }
-.send-btn:hover { opacity:.9; }
-.biz-pct-card { background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.05)); border:1px solid rgba(16,185,129,0.3); border-radius:16px; padding:20px 24px; display:flex; align-items:center; gap:20px; }
-.biz-pct-num { font-size:42px; font-weight:900; color:#10b981; }
-.chart-table-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-@media(max-width:900px){ .chart-table-grid { grid-template-columns:1fr; } }
-.drill-row { cursor:pointer; transition:.1s; }
-.drill-row:hover td { background:rgba(212,175,55,0.05) !important; }
-.total-row td { font-weight:800; background:rgba(212,175,55,0.06) !important; border-top:2px solid rgba(212,175,55,0.3); }
+.report-tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
+.report-tab{padding:8px 18px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;}
+.report-tab.active{background:var(--gold);color:#000;border-color:var(--gold);}
+.report-section{display:none;}
+.report-section.active{display:block;}
+.stat-table{width:100%;border-collapse:collapse;font-size:13px;}
+.stat-table th{background:rgba(212,175,55,0.08);color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);}
+.stat-table td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.03);}
+.stat-table tr:hover td{background:rgba(255,255,255,0.02);}
+.stat-table tr:last-child td{border-bottom:none;}
+.stat-table .num{font-weight:800;font-size:14px;text-align:right;}
+.stat-table .pct{font-size:11px;color:var(--muted);text-align:right;}
+.copy-btn{background:linear-gradient(135deg,#D4AF37,#F4D03F);color:#000;border:none;padding:10px 20px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;}
+.copy-btn:hover{opacity:.9;}
+.biz-card{border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:16px;}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.total-row td{font-weight:800;background:rgba(212,175,55,0.06)!important;border-top:2px solid rgba(212,175,55,0.3);}
 </style>
 </head>
 <body>
-
 <div class="admin-layout">
   <aside class="sidebar" id="sidebar"></aside>
   <div class="main-content">
@@ -57,7 +50,7 @@
         <select id="year-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
           <option value="2026">2026</option><option value="2025">2025</option>
         </select>
-        <button class="send-btn" onclick="sendReportToManagers()" style="background:linear-gradient(135deg,#D4AF37,#F4D03F);">
+        <button class="copy-btn" onclick="copyReport()">
           <i class="fas fa-copy"></i> Copy Report
         </button>
         <button class="btn btn-ghost btn-sm" onclick="loadAll()"><i class="fas fa-sync-alt"></i></button>
@@ -71,7 +64,7 @@
 
     <div class="page-content">
 
-      <!-- KPI OVERVIEW -->
+      <!-- KPI CARDS -->
       <div class="kpi-grid fade-up" style="grid-template-columns:repeat(6,1fr);margin-bottom:20px;">
         <div class="kpi-card blue"><span class="kpi-icon">📞</span><div class="kpi-label">Total Calls</div><div class="kpi-value" id="r-calls">—</div></div>
         <div class="kpi-card green"><span class="kpi-icon">🏢</span><div class="kpi-label">Project Leads</div><div class="kpi-value" id="r-leads">—</div></div>
@@ -88,12 +81,11 @@
         <button class="report-tab" onclick="switchTab('daily',this)">📅 Daily Breakdown</button>
         <button class="report-tab" onclick="switchTab('kpi',this)">📊 Agent KPIs</button>
         <button class="report-tab" onclick="switchTab('requests',this)">📋 Requests</button>
-        <button class="report-tab" onclick="switchTab('ai',this)">🤖 AI Report</button>
       </div>
 
       <!-- TAB: CALLS BY REASON -->
       <div class="report-section active" id="section-calls">
-        <div class="chart-table-grid">
+        <div class="chart-grid">
           <div class="section-card fade-up">
             <div class="section-header">
               <div class="section-title"><i class="fas fa-chart-pie" style="color:var(--gold)"></i> Calls by Reason</div>
@@ -115,36 +107,25 @@
             </div>
           </div>
         </div>
-
-        <!-- Business % -->
         <div class="section-card fade-up" style="margin-top:16px;">
           <div class="section-header">
             <div class="section-title"><i class="fas fa-briefcase" style="color:#10b981"></i> Business Relativity</div>
           </div>
           <div class="section-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
-            <div class="biz-pct-card">
-              <div>
-                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Business Related</div>
-                <div class="biz-pct-num" id="biz-count">—</div>
-                <div style="font-size:12px;color:var(--muted);" id="biz-pct-sub">calls</div>
-              </div>
-              <div style="font-size:36px;font-weight:900;color:#10b981;margin-left:auto;" id="biz-pct">—%</div>
+            <div class="biz-card" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);">
+              <div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Business Related</div>
+              <div style="font-size:36px;font-weight:900;color:#10b981;" id="biz-count">—</div></div>
+              <div style="font-size:32px;font-weight:900;color:#10b981;margin-left:auto;" id="biz-pct">—%</div>
             </div>
-            <div class="biz-pct-card" style="background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(239,68,68,0.05));border-color:rgba(239,68,68,0.3);">
-              <div>
-                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Non-Business</div>
-                <div class="biz-pct-num" style="color:#ef4444;" id="nonbiz-count">—</div>
-                <div style="font-size:12px;color:var(--muted);" id="nonbiz-pct-sub">calls</div>
-              </div>
-              <div style="font-size:36px;font-weight:900;color:#ef4444;margin-left:auto;" id="nonbiz-pct">—%</div>
+            <div class="biz-card" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);">
+              <div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Non-Business</div>
+              <div style="font-size:36px;font-weight:900;color:#ef4444;" id="nonbiz-count">—</div></div>
+              <div style="font-size:32px;font-weight:900;color:#ef4444;margin-left:auto;" id="nonbiz-pct">—%</div>
             </div>
-            <div class="biz-pct-card" style="background:linear-gradient(135deg,rgba(212,175,55,0.1),rgba(212,175,55,0.05));border-color:rgba(212,175,55,0.3);">
-              <div>
-                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Project Leads</div>
-                <div class="biz-pct-num" style="color:var(--gold);" id="proj-count">—</div>
-                <div style="font-size:12px;color:var(--muted);">leads MTD</div>
-              </div>
-              <div style="font-size:36px;font-weight:900;color:var(--gold);margin-left:auto;" id="proj-pct">—%</div>
+            <div class="biz-card" style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);">
+              <div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Project Leads</div>
+              <div style="font-size:36px;font-weight:900;color:var(--gold);" id="proj-count">—</div></div>
+              <div style="font-size:32px;font-weight:900;color:var(--gold);margin-left:auto;" id="proj-pct">—%</div>
             </div>
           </div>
         </div>
@@ -152,14 +133,12 @@
 
       <!-- TAB: CALLS BY AGENT -->
       <div class="report-section" id="section-agents">
-        <div class="chart-table-grid">
+        <div class="chart-grid">
           <div class="section-card fade-up">
             <div class="section-header">
               <div class="section-title"><i class="fas fa-chart-bar" style="color:var(--gold)"></i> Calls by Agent</div>
             </div>
-            <div style="padding:16px;height:280px;">
-              <canvas id="agent-chart"></canvas>
-            </div>
+            <div style="padding:16px;height:280px;"><canvas id="agent-chart"></canvas></div>
           </div>
           <div class="section-card fade-up">
             <div class="section-header">
@@ -173,8 +152,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Agent × Reason matrix -->
         <div class="section-card fade-up" style="margin-top:16px;">
           <div class="section-header">
             <div class="section-title"><i class="fas fa-th" style="color:var(--gold)"></i> Agent × Call Reason Matrix</div>
@@ -188,30 +165,25 @@
         </div>
       </div>
 
-      <!-- TAB: DAILY BREAKDOWN -->
+      <!-- TAB: DAILY -->
       <div class="report-section" id="section-daily">
         <div class="section-card fade-up">
           <div class="section-header">
             <div class="section-title"><i class="fas fa-chart-line" style="color:var(--gold)"></i> Daily Call Trend</div>
           </div>
-          <div style="padding:16px;height:220px;">
-            <canvas id="trend-chart"></canvas>
-          </div>
+          <div style="padding:16px;height:220px;"><canvas id="trend-chart"></canvas></div>
         </div>
         <div class="section-card fade-up" style="margin-top:16px;">
           <div class="section-header">
             <div class="section-title"><i class="fas fa-calendar-alt" style="color:var(--gold)"></i> Daily Detail Table</div>
           </div>
           <div class="section-body no-pad" style="overflow-x:auto;">
-            <table class="stat-table" id="daily-table">
-              <thead><tr id="daily-head"></tr></thead>
-              <tbody id="daily-body"></tbody>
-            </table>
+            <table class="stat-table"><thead><tr id="daily-head"></tr></thead><tbody id="daily-body"></tbody></table>
           </div>
         </div>
       </div>
 
-      <!-- TAB: AGENT KPIs -->
+      <!-- TAB: KPIs -->
       <div class="report-section" id="section-kpi">
         <div class="section-card fade-up">
           <div class="section-header">
@@ -219,15 +191,8 @@
           </div>
           <div class="section-body no-pad" style="overflow-x:auto;">
             <table class="nos-table">
-              <thead>
-                <tr>
-                  <th>Agent</th><th>Conformance</th><th>Missing Time</th><th>Net Missing</th>
-                  <th>AHT</th><th>Calls</th><th>Excuses</th><th>Quality</th><th>Annual Left</th>
-                </tr>
-              </thead>
-              <tbody id="kpi-table-body">
-                <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
-              </tbody>
+              <thead><tr><th>Agent</th><th>Conformance</th><th>Missing Time</th><th>Net Missing</th><th>AHT</th><th>Calls</th><th>Excuses</th><th>Quality</th><th>Annual Left</th></tr></thead>
+              <tbody id="kpi-table-body"><tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr></tbody>
             </table>
           </div>
         </div>
@@ -235,7 +200,7 @@
 
       <!-- TAB: REQUESTS -->
       <div class="report-section" id="section-requests">
-        <div class="chart-table-grid">
+        <div class="chart-grid">
           <div class="section-card fade-up">
             <div class="section-header">
               <div class="section-title"><i class="fas fa-chart-pie" style="color:var(--gold)"></i> Requests Overview</div>
@@ -253,35 +218,6 @@
                 <thead><tr><th>Type</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Approved</th><th style="text-align:right;">Rejected</th></tr></thead>
                 <tbody id="requests-table"></tbody>
               </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB: AI REPORT -->
-      <div class="report-section" id="section-ai">
-        <div class="section-card fade-up">
-          <div class="section-header">
-            <div class="section-title"><i class="fas fa-robot" style="color:var(--gold)"></i> AI Performance Report</div>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-primary btn-sm" onclick="generateAIReport('daily')" id="btn-daily-ai">
-                <i class="fas fa-calendar-day"></i> Daily Report
-              </button>
-              <button class="btn btn-ghost btn-sm" onclick="generateAIReport('monthly')" id="btn-monthly-ai">
-                <i class="fas fa-calendar-alt"></i> Monthly Report
-              </button>
-              <button class="btn btn-ghost btn-sm" id="btn-copy-ai" onclick="copyAIReport()" style="display:none;">
-                <i class="fas fa-copy"></i> Copy
-              </button>
-            </div>
-          </div>
-          <div class="section-body">
-            <div id="ai-report-output" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;">
-              <div style="text-align:center;">
-                <div style="font-size:40px;margin-bottom:12px;">🤖</div>
-                <div style="font-weight:700;margin-bottom:6px;">AI Report Generator</div>
-                <div style="color:var(--muted);font-size:12px;">Click Daily or Monthly to generate an AI-powered report</div>
-              </div>
             </div>
           </div>
         </div>
@@ -310,10 +246,9 @@ document.getElementById('month-filter').value = String(now.getMonth()+1).padStar
 
 const CHART_COLORS = ['#D4AF37','#10B981','#3B82F6','#8B5CF6','#EF4444','#F59E0B','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16','#0EA5E9'];
 const MONTH_NAMES  = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
-const MONTHS_SHORT = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 
 let reasonChart, agentChart, trendChart, requestsChart;
-let _callsData = [], _reasons = [], _agents = [], _projReasons = [], _bizReasons = [];
+let _callsData = [], _projReasons = [], _sortedReasons = [], _sortedAgents = [];
 
 function switchTab(name, btn) {
   document.querySelectorAll('.report-tab').forEach(b => b.classList.remove('active'));
@@ -326,12 +261,10 @@ async function loadAll() {
   const month     = document.getElementById('month-filter').value;
   const year      = parseInt(document.getElementById('year-filter').value);
   const monthName = MONTH_NAMES[parseInt(month)];
-  const dateFrom  = `${year}-${month}-01T00:00:00`;
+  const dateFrom  = year+'-'+month+'-01T00:00:00';
   const lastDay   = new Date(year, parseInt(month), 0).getDate();
-  const dateTo    = `${year}-${month}-${String(lastDay).padStart(2,'0')}T23:59:59`;
-
-  document.getElementById('kpi-month-label').innerText = `${monthName} ${year}`;
-
+  const dateTo    = year+'-'+month+'-'+String(lastDay).padStart(2,'0')+'T23:59:59';
+  document.getElementById('kpi-month-label').innerText = monthName+' '+year;
   await Promise.all([
     loadCallStats(dateFrom, dateTo, monthName, year),
     loadKPITable(monthName, year),
@@ -340,130 +273,95 @@ async function loadAll() {
 }
 
 async function loadCallStats(dateFrom, dateTo, monthName, year) {
-  // Get call reasons with categories
   const [callsRes, reasonsRes] = await Promise.all([
     db.from('call_logs').select('call_reason,agent_name,logged_at,business_relativity').gte('logged_at',dateFrom).lte('logged_at',dateTo),
     db.from('call_reasons').select('name,category').eq('is_active',true),
   ]);
-
   _callsData  = callsRes.data  || [];
-  _reasons    = reasonsRes.data || [];
-  _projReasons = _reasons.filter(r=>r.category==='Projects Leads').map(r=>r.name);
-  _bizReasons  = _reasons.filter(r=>r.category!=='Non-Business General Inquiry' && r.category!=='Wrong Number' && r.category!=='Call Dropped').map(r=>r.name);
+  const reasons = reasonsRes.data || [];
+  _projReasons  = reasons.filter(r=>r.category==='Projects Leads').map(r=>r.name);
 
   const total = _callsData.length;
   document.getElementById('r-calls').innerText = total;
-  document.getElementById('calls-total-label').innerText = `${total} total`;
+  document.getElementById('calls-total-label').innerText = total+' total';
 
-  // Project leads
   const leads = _callsData.filter(c=>_projReasons.includes(c.call_reason)).length;
-  document.getElementById('r-leads').innerText = leads;
+  document.getElementById('r-leads').innerText   = leads;
   document.getElementById('proj-count').innerText = leads;
-  document.getElementById('proj-pct').innerText = total ? (leads/total*100).toFixed(1)+'%' : '0%';
+  document.getElementById('proj-pct').innerText   = total?(leads/total*100).toFixed(1)+'%':'0%';
 
-  // Business relativity
   const bizCalls    = _callsData.filter(c=>c.business_relativity==='Business Related').length;
   const nonBizCalls = _callsData.filter(c=>c.business_relativity==='Non-Business Related').length;
-  document.getElementById('r-bizpct').innerText   = total ? (bizCalls/total*100).toFixed(0)+'%' : '—';
-  document.getElementById('biz-count').innerText  = bizCalls;
-  document.getElementById('biz-pct').innerText    = total ? (bizCalls/total*100).toFixed(1)+'%' : '0%';
+  document.getElementById('r-bizpct').innerText     = total?(bizCalls/total*100).toFixed(0)+'%':'—';
+  document.getElementById('biz-count').innerText    = bizCalls;
+  document.getElementById('biz-pct').innerText      = total?(bizCalls/total*100).toFixed(1)+'%':'0%';
   document.getElementById('nonbiz-count').innerText = nonBizCalls;
-  document.getElementById('nonbiz-pct').innerText   = total ? (nonBizCalls/total*100).toFixed(1)+'%' : '0%';
-  document.getElementById('biz-pct-sub').innerText    = 'of ' + total + ' calls';
-  document.getElementById('nonbiz-pct-sub').innerText = 'of ' + total + ' calls';
+  document.getElementById('nonbiz-pct').innerText   = total?(nonBizCalls/total*100).toFixed(1)+'%':'0%';
 
   // By reason
   const reasonCounts = {};
-  _callsData.forEach(c => {
-    const k = c.call_reason || 'Unknown';
-    reasonCounts[k] = (reasonCounts[k]||0)+1;
-  });
-  const sortedReasons = Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]);
-
-  drawDoughnut('reason-chart', sortedReasons.slice(0,10).map(e=>e[0]), sortedReasons.slice(0,10).map(e=>e[1]), reasonChart, c=>reasonChart=c);
-
-  // Reason table
+  _callsData.forEach(c => { const k=c.call_reason||'Unknown'; reasonCounts[k]=(reasonCounts[k]||0)+1; });
+  _sortedReasons = Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]);
+  drawDoughnut('reason-chart', _sortedReasons.slice(0,10).map(e=>e[0]), _sortedReasons.slice(0,10).map(e=>e[1]), reasonChart, c=>reasonChart=c);
   const rtbody = document.getElementById('reason-table');
-  rtbody.innerHTML = sortedReasons.map(([reason, count], i) => `
-    <tr>
-      <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CHART_COLORS[i%CHART_COLORS.length]};margin-right:8px;"></span>${reason}</td>
-      <td class="num">${count}</td>
-      <td class="pct">${total?(count/total*100).toFixed(1)+'%':'0%'}</td>
-    </tr>`).join('') +
-    `<tr class="total-row"><td><strong>Total</strong></td><td class="num">${total}</td><td class="pct">100%</td></tr>`;
+  rtbody.innerHTML = _sortedReasons.map(([r,c],i)=>
+    '<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+CHART_COLORS[i%CHART_COLORS.length]+';margin-right:8px;"></span>'+r+'</td><td class="num">'+c+'</td><td class="pct">'+(total?(c/total*100).toFixed(1)+'%':'0%')+'</td></tr>'
+  ).join('') + '<tr class="total-row"><td><strong>Total</strong></td><td class="num">'+total+'</td><td class="pct">100%</td></tr>';
 
   // By agent
   const agentCounts = {};
   _callsData.forEach(c => { const k=c.agent_name||'Unknown'; agentCounts[k]=(agentCounts[k]||0)+1; });
-  const sortedAgents = Object.entries(agentCounts).sort((a,b)=>b[1]-a[1]);
-
-  drawBar('agent-chart', sortedAgents.map(e=>e[0]), sortedAgents.map(e=>e[1]), agentChart, c=>agentChart=c);
-
+  _sortedAgents = Object.entries(agentCounts).sort((a,b)=>b[1]-a[1]);
+  drawBar('agent-chart', _sortedAgents.map(e=>e[0]), _sortedAgents.map(e=>e[1]), agentChart, c=>agentChart=c);
   const atbody = document.getElementById('agent-table');
-  atbody.innerHTML = sortedAgents.map(([agent, count], i) => `
-    <tr>
-      <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CHART_COLORS[i%CHART_COLORS.length]};margin-right:8px;"></span>${agent}</td>
-      <td class="num">${count}</td>
-      <td class="pct">${total?(count/total*100).toFixed(1)+'%':'0%'}</td>
-    </tr>`).join('') +
-    `<tr class="total-row"><td><strong>Total</strong></td><td class="num">${total}</td><td class="pct">100%</td></tr>`;
+  atbody.innerHTML = _sortedAgents.map(([a,c],i)=>
+    '<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+CHART_COLORS[i%CHART_COLORS.length]+';margin-right:8px;"></span>'+a+'</td><td class="num">'+c+'</td><td class="pct">'+(total?(c/total*100).toFixed(1)+'%':'0%')+'</td></tr>'
+  ).join('') + '<tr class="total-row"><td><strong>Total</strong></td><td class="num">'+total+'</td><td class="pct">100%</td></tr>';
 
-  // Agent × Reason matrix
-  buildMatrix(sortedAgents.map(e=>e[0]), sortedReasons.map(e=>e[0]));
+  // Matrix
+  buildMatrix();
 
-  // Daily trend
+  // Daily
   const dailyCounts = {};
-  _callsData.forEach(c => {
-    const day = c.logged_at?.split('T')[0];
-    if (day) dailyCounts[day] = (dailyCounts[day]||0)+1;
-  });
+  _callsData.forEach(c => { const day=c.logged_at?.split('T')[0]; if(day) dailyCounts[day]=(dailyCounts[day]||0)+1; });
   const sortedDays = Object.entries(dailyCounts).sort((a,b)=>a[0].localeCompare(b[0]));
   drawLine('trend-chart', sortedDays.map(e=>e[0].slice(5)), sortedDays.map(e=>e[1]), trendChart, c=>trendChart=c);
-
-  buildDailyTable(sortedDays.map(e=>e[0]), sortedReasons.map(e=>e[0]));
+  buildDailyTable(sortedDays.map(e=>e[0]));
 }
 
-function buildMatrix(agentNames, reasonNames) {
-  const head  = document.getElementById('matrix-head');
-  const tbody = document.getElementById('matrix-body');
-  const topReasons = reasonNames.slice(0,8);
-
-  head.innerHTML = '<th>Agent</th>' + topReasons.map(r=>`<th style="text-align:right;font-size:10px;max-width:80px;white-space:normal;">${r}</th>`).join('') + '<th style="text-align:right;">Total</th>';
-
-  tbody.innerHTML = agentNames.map(agent => {
-    const cells = topReasons.map(reason => {
-      const count = _callsData.filter(c=>c.agent_name===agent&&c.call_reason===reason).length;
-      return `<td style="text-align:right;font-weight:${count>0?'700':'400'};color:${count>0?'var(--text)':'var(--muted)'};">${count||'—'}</td>`;
+function buildMatrix() {
+  const topReasons = _sortedReasons.slice(0,8).map(e=>e[0]);
+  const agentNames = _sortedAgents.map(e=>e[0]);
+  const total = _callsData.length;
+  document.getElementById('matrix-head').innerHTML =
+    '<th>Agent</th>' + topReasons.map(r=>'<th style="text-align:right;font-size:10px;">'+r+'</th>').join('') + '<th style="text-align:right;">Total</th>';
+  document.getElementById('matrix-body').innerHTML = agentNames.map(agent => {
+    const cells = topReasons.map(r => {
+      const cnt = _callsData.filter(c=>c.agent_name===agent&&c.call_reason===r).length;
+      return '<td style="text-align:right;font-weight:'+(cnt>0?'700':'400')+';color:'+(cnt>0?'var(--text)':'var(--muted)')+';">'+(cnt||'—')+'</td>';
     }).join('');
-    const total = _callsData.filter(c=>c.agent_name===agent).length;
-    return `<tr><td style="font-weight:700;">${agent}</td>${cells}<td style="text-align:right;font-weight:800;color:var(--gold);">${total}</td></tr>`;
+    const t = _callsData.filter(c=>c.agent_name===agent).length;
+    return '<tr><td style="font-weight:700;">'+agent+'</td>'+cells+'<td style="text-align:right;font-weight:800;color:var(--gold);">'+t+'</td></tr>';
   }).join('');
 }
 
-function buildDailyTable(dates, reasonNames) {
-  const head  = document.getElementById('daily-head');
-  const tbody = document.getElementById('daily-body');
-  const topReasons = reasonNames.slice(0,8);
-
-  head.innerHTML = '<th>Date</th>' + topReasons.map(r=>`<th style="text-align:right;font-size:10px;">${r}</th>`).join('') + '<th style="text-align:right;">Total</th>';
-
-  tbody.innerHTML = dates.map(date => {
+function buildDailyTable(dates) {
+  const topReasons = _sortedReasons.slice(0,8).map(e=>e[0]);
+  const total = _callsData.length;
+  document.getElementById('daily-head').innerHTML =
+    '<th>Date</th>' + topReasons.map(r=>'<th style="text-align:right;font-size:10px;">'+r+'</th>').join('') + '<th style="text-align:right;">Total</th>';
+  const rows = dates.map(date => {
     const dayCalls = _callsData.filter(c=>c.logged_at?.startsWith(date));
-    const cells = topReasons.map(reason => {
-      const count = dayCalls.filter(c=>c.call_reason===reason).length;
-      return `<td style="text-align:right;font-weight:${count>0?'700':'400'};color:${count>0?'var(--text)':'var(--muted)'};">${count||'—'}</td>`;
-    }).join('');
     const d = new Date(date+'T00:00:00');
     const fmt = d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
-    return `<tr><td style="font-weight:700;white-space:nowrap;">${fmt}</td>${cells}<td style="text-align:right;font-weight:800;color:var(--gold);">${dayCalls.length}</td></tr>`;
+    const cells = topReasons.map(r => {
+      const cnt = dayCalls.filter(c=>c.call_reason===r).length;
+      return '<td style="text-align:right;font-weight:'+(cnt>0?'700':'400')+';color:'+(cnt>0?'var(--text)':'var(--muted)')+';">'+(cnt||'—')+'</td>';
+    }).join('');
+    return '<tr><td style="font-weight:700;white-space:nowrap;">'+fmt+'</td>'+cells+'<td style="text-align:right;font-weight:800;color:var(--gold);">'+dayCalls.length+'</td></tr>';
   }).join('');
-
-  // Totals row
-  const totals = topReasons.map(reason => {
-    const count = _callsData.filter(c=>c.call_reason===reason).length;
-    return `<td style="text-align:right;font-weight:800;">${count}</td>`;
-  }).join('');
-  tbody.innerHTML += `<tr class="total-row"><td><strong>Total</strong></td>${totals}<td style="text-align:right;font-weight:800;color:var(--gold);">${_callsData.length}</td></tr>`;
+  const totals = topReasons.map(r => '<td style="text-align:right;font-weight:800;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>').join('');
+  document.getElementById('daily-body').innerHTML = rows + '<tr class="total-row"><td><strong>Total</strong></td>'+totals+'<td style="text-align:right;font-weight:800;color:var(--gold);">'+total+'</td></tr>';
 }
 
 async function loadKPITable(monthName, year) {
@@ -472,9 +370,7 @@ async function loadKPITable(monthName, year) {
   const dateFrom = year+'-'+month+'-01';
   const lastDay  = new Date(year, parseInt(month), 0).getDate();
   const dateTo   = year+'-'+month+'-'+String(lastDay).padStart(2,'0');
-
-  tbody.innerHTML = `<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>`;
-
+  tbody.innerHTML = '<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
   try {
     const [agentsRes, perfRes, excusesRes, annualRes, qualityRes] = await Promise.all([
       db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name'),
@@ -483,536 +379,172 @@ async function loadKPITable(monthName, year) {
       db.from('annual_leave').select('*').eq('year',year),
       db.from('quality_scores').select('*').eq('month',monthName).eq('year',year),
     ]);
-
-    const agents      = agentsRes.data  || [];
-    const perfData    = perfRes.data    || [];
-    const excusesData = excusesRes.data || [];
-    const annData     = annualRes.data  || [];
-    const qualityData = qualityRes.data || [];
-
-    const confs = perfData.map(p=>parseFloat(p.conformance||0)).filter(v=>v>0);
+    const agents=agentsRes.data||[], perf=perfRes.data||[], exc=excusesRes.data||[], ann=annualRes.data||[], qual=qualityRes.data||[];
+    const confs = perf.map(p=>parseFloat(p.conformance||0)).filter(v=>v>0);
     document.getElementById('r-conf').innerText = confs.length?(confs.reduce((a,b)=>a+b,0)/confs.length).toFixed(0)+'%':'—';
-
-    const ahtArr = perfData.filter(p=>p.avg_aht>0);
+    const ahtArr = perf.filter(p=>p.avg_aht>0);
     document.getElementById('r-aht').innerText = ahtArr.length?secToTime(Math.round(ahtArr.reduce((s,p)=>s+p.avg_aht,0)/ahtArr.length)):'—';
-
     tbody.innerHTML = agents.map(agent => {
-      const agentPerf = perfData.filter(p=>p.agent_id===agent.id);
-      let conformance='—', missingTime='—', netMissing='—', avgAHT='—', totalCalls=0;
-      if (agentPerf.length) {
-        conformance = (agentPerf.reduce((s,p)=>s+parseFloat(p.conformance||0),0)/agentPerf.length).toFixed(1)+'%';
-        const totalMissingSec = agentPerf.reduce((s,p)=>s+(p.missing_sec||0),0);
-        const totalExtraSec   = agentPerf.reduce((s,p)=>s+Math.max(0,(p.active_sec||0)-(p.target_sec||0)),0);
-        const netMissingSec   = Math.max(0,totalMissingSec-totalExtraSec);
-        missingTime = totalMissingSec<=300?'Full Time':secToTime(totalMissingSec);
-        netMissing  = netMissingSec<=300?'Full Time':secToTime(netMissingSec);
-        const a2 = agentPerf.filter(p=>p.avg_aht>0);
-        if (a2.length) avgAHT = secToTime(Math.round(a2.reduce((s,p)=>s+p.avg_aht,0)/a2.length));
-        totalCalls = agentPerf.reduce((s,p)=>s+(p.calls||0),0);
+      const ap = perf.filter(p=>p.agent_id===agent.id);
+      let conf='—',miss='—',net='—',aht='—',calls=0;
+      if (ap.length) {
+        conf = (ap.reduce((s,p)=>s+parseFloat(p.conformance||0),0)/ap.length).toFixed(1)+'%';
+        const ms = ap.reduce((s,p)=>s+(p.missing_sec||0),0);
+        const es = ap.reduce((s,p)=>s+Math.max(0,(p.active_sec||0)-(p.target_sec||0)),0);
+        const ns = Math.max(0,ms-es);
+        miss = ms<=300?'Full Time':secToTime(ms);
+        net  = ns<=300?'Full Time':secToTime(ns);
+        const a2 = ap.filter(p=>p.avg_aht>0);
+        if (a2.length) aht = secToTime(Math.round(a2.reduce((s,p)=>s+p.avg_aht,0)/a2.length));
+        calls = ap.reduce((s,p)=>s+(p.calls||0),0);
       }
-      const excHours = excusesData.filter(e=>e.agent_id===agent.id).length*2;
-      const ann      = annData.find(a=>a.agent_id===agent.id)||{};
-      const annLeft  = ann.remaining!==undefined?ann.remaining:'—';
-      const quality  = qualityData.find(q=>q.agent_id===agent.id);
-      const confNum  = parseFloat(conformance)||0;
-      const confColor = confNum>=98?'#10B981':confNum>=90?'#F59E0B':'#EF4444';
-      return `<tr>
-        <td><div style="display:flex;align-items:center;gap:8px;"><div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">${initials(agent.formal_name)}</div><span style="font-weight:700;">${agent.formal_name}</span></div></td>
-        <td style="font-weight:800;color:${confColor};">${conformance}</td>
-        <td style="color:${missingTime==='Full Time'?'#10B981':'#EF4444'};font-weight:700;">${missingTime}</td>
-        <td style="color:${netMissing==='Full Time'?'#10B981':'#EF4444'};font-weight:700;">${netMissing}</td>
-        <td style="font-family:monospace;">${avgAHT}</td>
-        <td style="font-weight:700;">${totalCalls}</td>
-        <td style="color:#F59E0B;">${excHours>0?excHours+' hrs':'None'}</td>
-        <td style="color:${quality?'var(--gold)':'var(--muted)'};">${quality?.score||'—'}</td>
-        <td>${annLeft!=='—'?`<span class="badge ${annLeft<=3?'badge-danger':'badge-success'}">${annLeft} days</span>`:'—'}</td>
-      </tr>`;
+      const excH = exc.filter(e=>e.agent_id===agent.id).length*2;
+      const a    = ann.find(x=>x.agent_id===agent.id)||{};
+      const left = a.remaining!==undefined?a.remaining:'—';
+      const q    = qual.find(x=>x.agent_id===agent.id);
+      const cn   = parseFloat(conf)||0;
+      const cc   = cn>=98?'#10B981':cn>=90?'#F59E0B':'#EF4444';
+      return '<tr><td><div style="display:flex;align-items:center;gap:8px;"><div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">'+initials(agent.formal_name)+'</div><span style="font-weight:700;">'+agent.formal_name+'</span></div></td>'
+        +'<td style="font-weight:800;color:'+cc+';">'+conf+'</td>'
+        +'<td style="color:'+(miss==='Full Time'?'#10B981':'#EF4444')+';font-weight:700;">'+miss+'</td>'
+        +'<td style="color:'+(net==='Full Time'?'#10B981':'#EF4444')+';font-weight:700;">'+net+'</td>'
+        +'<td style="font-family:monospace;">'+aht+'</td>'
+        +'<td style="font-weight:700;">'+calls+'</td>'
+        +'<td style="color:#F59E0B;">'+(excH>0?excH+' hrs':'None')+'</td>'
+        +'<td style="color:'+(q?'var(--gold)':'var(--muted)')+';">'+(q?.score||'—')+'</td>'
+        +'<td>'+(left!=='—'?'<span class="badge '+(left<=3?'badge-danger':'badge-success')+'">'+left+' days</span>':'—')+'</td></tr>';
     }).join('');
-
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">❌</span>Failed: ${e.message}</div></td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">❌</span>Failed: '+e.message+'</div></td></tr>';
   }
 }
 
 async function loadRequestsData() {
-  const [allReqs] = await Promise.all([
-    db.from('requests').select('type,status'),
-  ]);
-
-  const reqs = allReqs.data || [];
-  const types = [...new Set(reqs.map(r=>r.type))];
-
-  const pending  = reqs.filter(r=>r.status==='Pending').length;
-  const approved = reqs.filter(r=>r.status==='Approved').length;
-  const rejected = reqs.filter(r=>r.status==='Rejected').length;
-
+  const {data:reqs} = await db.from('requests').select('type,status');
+  const all = reqs||[];
+  const pending  = all.filter(r=>r.status==='Pending').length;
+  const approved = all.filter(r=>r.status==='Approved').length;
+  const rejected = all.filter(r=>r.status==='Rejected').length;
   document.getElementById('r-pending').innerText = pending;
-
   drawDoughnut('requests-chart',['Pending','Approved','Rejected'],[pending,approved,rejected],requestsChart,c=>requestsChart=c,['#F59E0B','#10B981','#EF4444']);
-
-  const rtbody = document.getElementById('requests-table');
-  rtbody.innerHTML = types.map(type => {
-    const p = reqs.filter(r=>r.type===type&&r.status==='Pending').length;
-    const a = reqs.filter(r=>r.type===type&&r.status==='Approved').length;
-    const rj = reqs.filter(r=>r.type===type&&r.status==='Rejected').length;
-    return `<tr>
-      <td style="font-weight:600;">${type}</td>
-      <td style="text-align:right;color:#F59E0B;font-weight:700;">${p||'—'}</td>
-      <td style="text-align:right;color:#10B981;font-weight:700;">${a||'—'}</td>
-      <td style="text-align:right;color:#EF4444;font-weight:700;">${rj||'—'}</td>
-    </tr>`;
-  }).join('') + `<tr class="total-row">
-    <td><strong>Total</strong></td>
-    <td style="text-align:right;color:#F59E0B;font-weight:800;">${pending}</td>
-    <td style="text-align:right;color:#10B981;font-weight:800;">${approved}</td>
-    <td style="text-align:right;color:#EF4444;font-weight:800;">${rejected}</td>
-  </tr>`;
+  const types = [...new Set(all.map(r=>r.type))];
+  document.getElementById('requests-table').innerHTML = types.map(type => {
+    const p=all.filter(r=>r.type===type&&r.status==='Pending').length;
+    const a=all.filter(r=>r.type===type&&r.status==='Approved').length;
+    const rj=all.filter(r=>r.type===type&&r.status==='Rejected').length;
+    return '<tr><td style="font-weight:600;">'+type+'</td><td style="text-align:right;color:#F59E0B;font-weight:700;">'+(p||'—')+'</td><td style="text-align:right;color:#10B981;font-weight:700;">'+(a||'—')+'</td><td style="text-align:right;color:#EF4444;font-weight:700;">'+(rj||'—')+'</td></tr>';
+  }).join('') + '<tr class="total-row"><td><strong>Total</strong></td><td style="text-align:right;color:#F59E0B;font-weight:800;">'+pending+'</td><td style="text-align:right;color:#10B981;font-weight:800;">'+approved+'</td><td style="text-align:right;color:#EF4444;font-weight:800;">'+rejected+'</td></tr>';
 }
 
-async function sendReportToManagers() {
+async function copyReport() {
+  if (!_callsData.length) { showToast('Load data first','warning'); return; }
   const month     = document.getElementById('month-filter').value;
   const year      = document.getElementById('year-filter').value;
   const monthName = MONTH_NAMES[parseInt(month)];
-
-  // Get manager emails
-  const { data: managers } = await db.from('agents').select('email,formal_name,role').in('role',['Manager','Admin','manager','admin']).eq('status','Active');
-  const ccEmails = (managers||[]).filter(m=>m.email).map(m=>m.email.trim()).join(';');
-
-  if (!_callsData.length) { showToast('Load report data first','warning'); return; }
-
-  const total = _callsData.length;
-
-  // Build reason breakdown
-  const reasonCounts = {};
-  _callsData.forEach(c => { const k=c.call_reason||'Unknown'; reasonCounts[k]=(reasonCounts[k]||0)+1; });
-  const sortedReasons = Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]);
-
-  // Build agent breakdown
-  const agentCounts = {};
-  _callsData.forEach(c => { const k=c.agent_name||'Unknown'; agentCounts[k]=(agentCounts[k]||0)+1; });
-  const sortedAgents = Object.entries(agentCounts).sort((a,b)=>b[1]-a[1]);
-
+  const total     = _callsData.length;
   const bizCalls    = _callsData.filter(c=>c.business_relativity==='Business Related').length;
   const nonBizCalls = _callsData.filter(c=>c.business_relativity==='Non-Business Related').length;
   const leads       = _callsData.filter(c=>_projReasons.includes(c.call_reason)).length;
-
   const bizPct    = total?(bizCalls/total*100).toFixed(1)+'%':'0%';
   const nonBizPct = total?(nonBizCalls/total*100).toFixed(1)+'%':'0%';
+  const topReasons = _sortedReasons.slice(0,8).map(e=>e[0]);
 
-  // MTD Calls by Reason rows
-  const reasonRows = sortedReasons.map(([reason,count], i) =>
-    `<tr style="background:${i%2===0?'#ffffff':'#f9f9f9'}">
-      <td style="padding:9px 12px;border-bottom:1px solid #e5e5e5;">${reason}</td>
-      <td style="padding:9px 12px;text-align:right;font-weight:700;border-bottom:1px solid #e5e5e5;">${count}</td>
-      <td style="padding:9px 12px;text-align:right;color:#666;border-bottom:1px solid #e5e5e5;">${total?(count/total*100).toFixed(1)+'%':'0%'}</td>
-    </tr>`
-  ).join('');
+  // Reason rows
+  const reasonRows = _sortedReasons.map(function(e,i){
+    return '<tr style="background:'+(i%2===0?'#fff':'#f9f9f9')+'"><td style="padding:9px 12px;border-bottom:1px solid #eee;">'+e[0]+'</td><td style="padding:9px 12px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">'+e[1]+'</td><td style="padding:9px 12px;text-align:right;color:#666;border-bottom:1px solid #eee;">'+(total?(e[1]/total*100).toFixed(1)+'%':'0%')+'</td></tr>';
+  }).join('');
 
-  // Agent × Reason Matrix
-  const agentNames  = sortedAgents.map(e=>e[0]);
-  const topReasons  = sortedReasons.slice(0,8).map(e=>e[0]);
-  const matrixHead  = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;font-size:11px;">Agent</th>' +
-    topReasons.map(r=>`<th style="padding:8px 6px;background:#1E5E9E;color:white;text-align:center;font-size:10px;white-space:nowrap;max-width:70px;">${r}</th>`).join('') +
-    '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;font-size:11px;">Total</th>';
-  const matrixRows = agentNames.map((agent,i) => {
-    const cells = topReasons.map(reason => {
-      const cnt = _callsData.filter(c=>c.agent_name===agent&&c.call_reason===reason).length;
-      return `<td style="padding:7px 6px;text-align:center;border-bottom:1px solid #eee;font-weight:${cnt>0?'700':'400'};color:${cnt>0?'#333':'#bbb'};">${cnt||'—'}</td>`;
+  // Matrix rows
+  const agentNames = _sortedAgents.map(e=>e[0]);
+  const matrixHead = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;">Agent</th>'
+    + topReasons.map(r=>'<th style="padding:6px 8px;background:#1E5E9E;color:white;text-align:center;font-size:10px;">'+r+'</th>').join('')
+    + '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;">Total</th>';
+  const matrixRows = agentNames.map(function(agent,i){
+    const cells = topReasons.map(function(r){
+      const cnt = _callsData.filter(c=>c.agent_name===agent&&c.call_reason===r).length;
+      return '<td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee;font-weight:'+(cnt>0?'700':'400')+';color:'+(cnt>0?'#333':'#bbb')+';">'+(cnt||'—')+'</td>';
     }).join('');
-    const agentTotal = _callsData.filter(c=>c.agent_name===agent).length;
-    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
-      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;font-size:12px;">${agent}</td>
-      ${cells}
-      <td style="padding:7px 10px;text-align:center;border-bottom:1px solid #eee;font-weight:800;color:#1E5E9E;">${agentTotal}</td>
-    </tr>`;
+    const t = _callsData.filter(c=>c.agent_name===agent).length;
+    return '<tr style="background:'+(i%2===0?'#fff':'#f9f9f9')+'"><td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;">'+agent+'</td>'+cells+'<td style="padding:7px 10px;text-align:center;font-weight:800;color:#1E5E9E;border-bottom:1px solid #eee;">'+t+'</td></tr>';
   }).join('');
-  const matrixTotals = topReasons.map(reason => {
-    const cnt = _callsData.filter(c=>c.call_reason===reason).length;
-    return `<td style="padding:8px 6px;text-align:center;font-weight:800;background:#f0f0f0;">${cnt}</td>`;
-  }).join('');
+  const matrixTotals = topReasons.map(function(r){ return '<td style="padding:8px;text-align:center;font-weight:800;background:#f0f0f0;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
 
-  // Daily Detail Table
+  // Daily rows
   const dailyMap = {};
-  _callsData.forEach(c => {
-    const day = c.logged_at?.split('T')[0];
-    if (!day) return;
-    if (!dailyMap[day]) dailyMap[day] = {};
-    const r = c.call_reason||'Unknown';
-    dailyMap[day][r] = (dailyMap[day][r]||0)+1;
-  });
+  _callsData.forEach(function(c){ const day=c.logged_at&&c.logged_at.split('T')[0]; if(!day)return; if(!dailyMap[day])dailyMap[day]=[]; dailyMap[day].push(c); });
   const sortedDays = Object.keys(dailyMap).sort();
-  const dailyHead = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;font-size:11px;">Date</th>' +
-    topReasons.map(r=>`<th style="padding:8px 6px;background:#1E5E9E;color:white;text-align:center;font-size:10px;">${r}</th>`).join('') +
-    '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;font-size:11px;">Total</th>';
-  const dailyRows = sortedDays.map((day,i) => {
-    const d    = new Date(day+'T00:00:00');
-    const fmt  = d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
-    const dayCalls = _callsData.filter(c=>c.logged_at?.startsWith(day));
-    const cells = topReasons.map(reason => {
-      const cnt = dayCalls.filter(c=>c.call_reason===reason).length;
-      return `<td style="padding:7px 6px;text-align:center;border-bottom:1px solid #eee;font-weight:${cnt>0?'700':'400'};color:${cnt>0?'#333':'#bbb'};">${cnt||'—'}</td>`;
-    }).join('');
-    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
-      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;font-size:11px;white-space:nowrap;">${fmt}</td>
-      ${cells}
-      <td style="padding:7px 10px;text-align:center;border-bottom:1px solid #eee;font-weight:800;color:#1E5E9E;">${dayCalls.length}</td>
-    </tr>`;
+  const dailyHead = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;">Date</th>'
+    + topReasons.map(r=>'<th style="padding:6px 8px;background:#1E5E9E;color:white;text-align:center;font-size:10px;">'+r+'</th>').join('')
+    + '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;">Total</th>';
+  const dailyRows = sortedDays.map(function(day,i){
+    const dayCalls = dailyMap[day]||[];
+    const d = new Date(day+'T00:00:00');
+    const fmt = d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
+    const cells = topReasons.map(function(r){ const cnt=dayCalls.filter(c=>c.call_reason===r).length; return '<td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee;font-weight:'+(cnt>0?'700':'400')+';color:'+(cnt>0?'#333':'#bbb')+';">'+(cnt||'—')+'</td>'; }).join('');
+    return '<tr style="background:'+(i%2===0?'#fff':'#f9f9f9')+'"><td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;white-space:nowrap;">'+fmt+'</td>'+cells+'<td style="padding:7px 10px;text-align:center;font-weight:800;color:#1E5E9E;border-bottom:1px solid #eee;">'+dayCalls.length+'</td></tr>';
   }).join('');
-  const dailyTotals = topReasons.map(reason => {
-    const cnt = _callsData.filter(c=>c.call_reason===reason).length;
-    return `<td style="padding:8px 6px;text-align:center;font-weight:800;background:#f0f0f0;">${cnt}</td>`;
-  }).join('');
+  const dailyTotals = topReasons.map(function(r){ return '<td style="padding:8px;text-align:center;font-weight:800;background:#f0f0f0;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
 
-  const html = `
-<div style="font-family:Arial,sans-serif;font-size:13px;max-width:900px;">
+  const generatedDate = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
 
-  <h2 style="color:#1E5E9E;margin-bottom:2px;font-size:18px;">📊 Call Report — ${monthName} ${year}</h2>
-  <p style="color:#888;margin-bottom:20px;font-size:12px;">Nations of Sky — Monthly Performance Report</p>
+  const html = '<div style="font-family:Arial,sans-serif;font-size:13px;max-width:950px;">'
+    + '<h2 style="color:#1E5E9E;margin-bottom:2px;font-size:18px;">Call Report — '+monthName+' '+year+'</h2>'
+    + '<p style="color:#888;margin-bottom:20px;font-size:12px;">Nations of Sky — Monthly Performance Report</p>'
 
-  <!-- Summary Cards -->
-  <table style="width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:24px;">
-    <tr>
-      <td style="background:#1E5E9E;color:white;padding:16px;border-radius:8px;text-align:center;">
-        <div style="font-size:32px;font-weight:900;line-height:1;">${total}</div>
-        <div style="font-size:11px;margin-top:6px;opacity:.9;">Total Calls</div>
-      </td>
-      <td style="background:#10b981;color:white;padding:16px;border-radius:8px;text-align:center;">
-        <div style="font-size:32px;font-weight:900;line-height:1;">${bizPct}</div>
-        <div style="font-size:11px;margin-top:6px;opacity:.9;">Business Related</div>
-      </td>
-      <td style="background:#ef4444;color:white;padding:16px;border-radius:8px;text-align:center;">
-        <div style="font-size:32px;font-weight:900;line-height:1;">${nonBizPct}</div>
-        <div style="font-size:11px;margin-top:6px;opacity:.9;">Non-Business</div>
-      </td>
-      <td style="background:#D4AF37;color:white;padding:16px;border-radius:8px;text-align:center;">
-        <div style="font-size:32px;font-weight:900;line-height:1;">${leads}</div>
-        <div style="font-size:11px;margin-top:6px;opacity:.9;">Project Leads</div>
-      </td>
-    </tr>
-  </table>
+    + '<table style="width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:24px;"><tr>'
+    + '<td style="background:#1E5E9E;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+total+'</div><div style="font-size:11px;margin-top:4px;">Total Calls</div></td>'
+    + '<td style="background:#10b981;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+bizPct+'</div><div style="font-size:11px;margin-top:4px;">Business Related</div></td>'
+    + '<td style="background:#ef4444;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+nonBizPct+'</div><div style="font-size:11px;margin-top:4px;">Non-Business</div></td>'
+    + '<td style="background:#D4AF37;color:white;padding:16px;border-radius:8px;text-align:center;"><div style="font-size:30px;font-weight:900;">'+leads+'</div><div style="font-size:11px;margin-top:4px;">Project Leads</div></td>'
+    + '</tr></table>'
 
-  <!-- MTD Calls by Reason -->
-  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">MTD — Calls by Reason</h3>
-  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:28px;font-size:12px;">
-    <thead><tr>${'<th style="padding:10px 12px;text-align:left;background:#1E5E9E;color:white;">Call Reason</th><th style="padding:10px 12px;text-align:right;background:#1E5E9E;color:white;">No. Calls</th><th style="padding:10px 12px;text-align:right;background:#1E5E9E;color:white;">%</th>'}</tr></thead>
-    <tbody>${reasonRows}</tbody>
-    <tfoot><tr style="background:#f0f0f0;font-weight:800;">
-      <td style="padding:10px 12px;">Grand Total</td>
-      <td style="padding:10px 12px;text-align:right;">${total}</td>
-      <td style="padding:10px 12px;text-align:right;">100%</td>
-    </tr></tfoot>
-  </table>
+    + '<h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">MTD — Calls by Reason</h3>'
+    + '<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:24px;font-size:12px;">'
+    + '<thead><tr><th style="padding:10px 12px;background:#1E5E9E;color:white;text-align:left;">Call Reason</th><th style="padding:10px 12px;background:#1E5E9E;color:white;text-align:right;">No. Calls</th><th style="padding:10px 12px;background:#1E5E9E;color:white;text-align:right;">%</th></tr></thead>'
+    + '<tbody>'+reasonRows+'</tbody>'
+    + '<tfoot><tr style="background:#f0f0f0;font-weight:800;"><td style="padding:10px 12px;">Grand Total</td><td style="padding:10px 12px;text-align:right;">'+total+'</td><td style="padding:10px 12px;text-align:right;">100%</td></tr></tfoot>'
+    + '</table>'
 
-  <!-- Agent × Reason Matrix -->
-  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Agent × Call Reason Matrix</h3>
-  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:28px;font-size:11px;">
-    <thead><tr>${matrixHead}</tr></thead>
-    <tbody>${matrixRows}</tbody>
-    <tfoot><tr style="background:#f0f0f0;font-weight:800;">
-      <td style="padding:8px 10px;">Total</td>
-      ${matrixTotals}
-      <td style="padding:8px 10px;text-align:center;font-weight:800;">${total}</td>
-    </tr></tfoot>
-  </table>
+    + '<h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Agent x Call Reason Matrix</h3>'
+    + '<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:24px;font-size:11px;">'
+    + '<thead><tr>'+matrixHead+'</tr></thead>'
+    + '<tbody>'+matrixRows+'</tbody>'
+    + '<tfoot><tr style="background:#f0f0f0;font-weight:800;"><td style="padding:8px 10px;">Total</td>'+matrixTotals+'<td style="padding:8px 10px;text-align:center;font-weight:800;">'+total+'</td></tr></tfoot>'
+    + '</table>'
 
-  <!-- Daily Detail Table -->
-  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Daily Detail — ${monthName} ${year}</h3>
-  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:28px;font-size:11px;">
-    <thead><tr>${dailyHead}</tr></thead>
-    <tbody>${dailyRows}</tbody>
-    <tfoot><tr style="background:#f0f0f0;font-weight:800;">
-      <td style="padding:8px 10px;">Total</td>
-      ${dailyTotals}
-      <td style="padding:8px 10px;text-align:center;font-weight:800;">${total}</td>
-    </tr></tfoot>
-  </table>
+    + '<h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Daily Detail — '+monthName+' '+year+'</h3>'
+    + '<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:24px;font-size:11px;">'
+    + '<thead><tr>'+dailyHead+'</tr></thead>'
+    + '<tbody>'+dailyRows+'</tbody>'
+    + '<tfoot><tr style="background:#f0f0f0;font-weight:800;"><td style="padding:8px 10px;">Total</td>'+dailyTotals+'<td style="padding:8px 10px;text-align:center;font-weight:800;">'+total+'</td></tr></tfoot>'
+    + '</table>'
 
-  <p style="color:#aaa;font-size:11px;margin-top:20px;border-top:1px solid #eee;padding-top:12px;">
-    Generated by NOS Admin Portal — ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}
-  </p>
-</div>`;
-  <p style="color:#888;font-size:11px;margin-top:20px;">Generated by NOS Admin Portal — ${new Date().toLocaleDateString('en-GB')}</p>
-</div>`;
-
-  // Copy to clipboard
-  const blob = new Blob([html],{type:'text/html'});
-  const clipData = new ClipboardItem({'text/html':blob});
-  await navigator.clipboard.write([clipData]);
-
-  // Open Outlook with TO = managers
-  const subject = `Call Report — ${monthName} ${year}`;
-  const toEmails = ccEmails || '';
-  if (toEmails) {
-    window.open(`mailto:${toEmails}?subject=${encodeURIComponent(subject)}`);
-    showToast('📋 Report copied! Paste in Outlook body → Send','success');
-  } else {
-    showToast('📋 Report copied! Open Outlook, paste in body → add recipients','success');
-  }
-}
-
-// Chart helpers
-function drawDoughnut(id, labels, data, instance, setter, colors) {
-  if (instance) instance.destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  setter(new Chart(ctx, {
-    type: 'doughnut',
-    data: { labels, datasets:[{data,backgroundColor:colors||CHART_COLORS,borderWidth:0,hoverOffset:6}] },
-    options: {
-      responsive:true, maintainAspectRatio:false, cutout:'62%',
-      plugins:{ legend:{position:'right',labels:{color:'#6B7A99',font:{size:10},padding:10,boxWidth:10}} }
-    }
-  }));
-}
-function drawBar(id, labels, data, instance, setter) {
-  if (instance) instance.destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  setter(new Chart(ctx, {
-    type:'bar',
-    data:{labels,datasets:[{data,backgroundColor:CHART_COLORS,borderRadius:6,borderSkipped:false}]},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{display:false}},
-        y:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'rgba(212,175,55,0.08)'},beginAtZero:true}
-      }
-    }
-  }));
-}
-function drawLine(id, labels, data, instance, setter) {
-  if (instance) instance.destroy();
-  const ctx = document.getElementById(id);
-  if (!ctx) return;
-  setter(new Chart(ctx, {
-    type:'line',
-    data:{labels,datasets:[{data,borderColor:'#D4AF37',backgroundColor:'rgba(212,175,55,0.08)',fill:true,tension:0.4,pointBackgroundColor:'#D4AF37',pointRadius:3}]},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{display:false}},
-        y:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'rgba(212,175,55,0.08)'},beginAtZero:true}
-      }
-    }
-  }));
-}
-function secToTime(s) {
-  if (!s&&s!==0) return '—';
-  return Math.floor(s/3600).toString().padStart(2,'0')+':'+Math.floor((s%3600)/60).toString().padStart(2,'0')+':'+Math.floor(s%60).toString().padStart(2,'0');
-}
-function initials(name) {
-  if (!name) return '?';
-  return name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
-}
-
-loadAll();
-
-// ── AI REPORT ──
-let _aiReportText = '';
-
-async function generateAIReport(type) {
-  const month     = document.getElementById('month-filter').value;
-  const year      = parseInt(document.getElementById('year-filter').value);
-  const monthName = MONTH_NAMES[parseInt(month)];
-  const today     = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
-
-  const btnId  = type === 'daily' ? 'btn-daily-ai' : 'btn-monthly-ai';
-  const btn    = document.getElementById(btnId);
-  const output = document.getElementById('ai-report-output');
-
-  btn.disabled = true;
-  btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Generating...`;
-  document.getElementById('btn-copy-ai').style.display = 'none';
-  output.innerHTML = `<div style="text-align:center;padding:40px;"><div class="spinner" style="margin:0 auto 12px;"></div><div style="color:var(--muted);font-size:13px;">AI is analyzing your data...</div></div>`;
+    + '<p style="color:#aaa;font-size:11px;margin-top:16px;border-top:1px solid #eee;padding-top:12px;">Generated by NOS Admin Portal — '+generatedDate+'</p>'
+    + '</div>';
 
   try {
-    // Fetch data
-    let data = {};
+    const blob = new Blob([html],{type:'text/html'});
+    const clipData = new ClipboardItem({'text/html':blob});
+    await navigator.clipboard.write([clipData]);
 
-    if (type === 'daily') {
-      const [callsRes, breaksRes, schedRes, adherenceRes] = await Promise.all([
-        db.from('call_logs').select('call_reason,agent_name,business_relativity').gte('logged_at', today+'T00:00:00').lte('logged_at', today+'T23:59:59'),
-        db.from('breaks').select('agent_id,break1,lunch,break2,scheduled_break1,scheduled_lunch,scheduled_break2,agents(formal_name)').eq('break_date', today),
-        db.from('schedule').select('agent_id,day_type,agents(formal_name)').eq('shift_date', today),
-        db.from('adherence_deviations').select('agent_name,deviation_type,deviation_minutes,is_waived').eq('deviation_date', today),
-      ]);
+    // Open Outlook
+    const { data: managers } = await db.from('agents').select('email').in('role',['Manager','Admin']).eq('status','Active');
+    const toEmails = (managers||[]).filter(m=>m.email).map(m=>m.email.trim()).join(';');
+    const subject  = 'Call Report — '+monthName+' '+year;
+    window.open('mailto:'+(toEmails||'')+'?subject='+encodeURIComponent(subject));
 
-      const calls     = callsRes.data || [];
-      const breaks    = breaksRes.data || [];
-      const schedule  = schedRes.data || [];
-      const adherence = adherenceRes.data || [];
-
-      const workingAgents = schedule.filter(s=>s.day_type==='Work').map(s=>s.agents?.formal_name).filter(Boolean);
-      const totalCalls    = calls.length;
-      const bizCalls      = calls.filter(c=>c.business_relativity==='Business Related').length;
-
-      const reasonCounts = {};
-      calls.forEach(c => { const k=c.call_reason||'Unknown'; reasonCounts[k]=(reasonCounts[k]||0)+1; });
-
-      const agentCounts = {};
-      calls.forEach(c => { const k=c.agent_name||'Unknown'; agentCounts[k]=(agentCounts[k]||0)+1; });
-
-      const breakChanges = breaks.map(b => {
-        const name = b.agents?.formal_name || b.agent_id;
-        const changes = [];
-        const diff = (s,a) => { if(!s||!a)return 0; const sm=parseInt(s.split(':')[0])*60+parseInt(s.split(':')[1]); const am=parseInt(a.split(':')[0])*60+parseInt(a.split(':')[1]); return am-sm; };
-        if(b.scheduled_break1&&b.break1&&Math.abs(diff(b.scheduled_break1,b.break1))>=15) changes.push(`Break1: scheduled ${b.scheduled_break1?.substring(0,5)} → actual ${b.break1?.substring(0,5)} (${diff(b.scheduled_break1,b.break1)>0?'+':''}${diff(b.scheduled_break1,b.break1)} min)`);
-        if(b.scheduled_lunch&&b.lunch&&Math.abs(diff(b.scheduled_lunch,b.lunch))>=15)   changes.push(`Lunch: scheduled ${b.scheduled_lunch?.substring(0,5)} → actual ${b.lunch?.substring(0,5)} (${diff(b.scheduled_lunch,b.lunch)>0?'+':''}${diff(b.scheduled_lunch,b.lunch)} min)`);
-        if(b.scheduled_break2&&b.break2&&Math.abs(diff(b.scheduled_break2,b.break2))>=15) changes.push(`Break2: scheduled ${b.scheduled_break2?.substring(0,5)} → actual ${b.break2?.substring(0,5)} (${diff(b.scheduled_break2,b.break2)>0?'+':''}${diff(b.scheduled_break2,b.break2)} min)`);
-        return changes.length ? `${name}: ${changes.join(', ')}` : null;
-      }).filter(Boolean);
-
-      data = {
-        date: today,
-        working_agents: workingAgents,
-        total_calls: totalCalls,
-        business_related: bizCalls,
-        biz_pct: totalCalls ? (bizCalls/totalCalls*100).toFixed(1)+'%' : '0%',
-        calls_by_reason: Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]).map(([r,c])=>`${r}: ${c}`),
-        calls_by_agent:  Object.entries(agentCounts).sort((a,b)=>b[1]-a[1]).map(([a,c])=>`${a}: ${c}`),
-        break_changes: breakChanges,
-        adherence_deviations: adherence.map(a=>`${a.agent_name} - ${a.deviation_type} (${a.deviation_minutes} min)${a.is_waived?' [waived]':''}`),
-      };
-    } else {
-      // Monthly
-      const dateFrom = `${year}-${month}-01`;
-      const lastDay  = new Date(year, parseInt(month), 0).getDate();
-      const dateTo   = `${year}-${month}-${String(lastDay).padStart(2,'0')}`;
-
-      const [callsRes, perfRes, excusesRes, qualityRes, adherenceRes] = await Promise.all([
-        db.from('call_logs').select('call_reason,agent_name,business_relativity').gte('logged_at',dateFrom+'T00:00:00').lte('logged_at',dateTo+'T23:59:59'),
-        db.from('daily_performance').select('agent_id,conformance,missing_sec,calls,agents(formal_name)').gte('perf_date',dateFrom).lte('perf_date',dateTo),
-        db.from('excuses').select('agent_id,agents(formal_name)').eq('status','Approved').gte('excuse_date',dateFrom).lte('excuse_date',dateTo),
-        db.from('quality_scores').select('agent_id,score,agents(formal_name)').eq('month',monthName).eq('year',year),
-        db.from('adherence_deviations').select('agent_name,deviation_type,is_waived').gte('deviation_date',dateFrom).lte('deviation_date',dateTo),
-      ]);
-
-      const calls     = callsRes.data || [];
-      const perf      = perfRes.data  || [];
-      const excuses   = excusesRes.data || [];
-      const quality   = qualityRes.data || [];
-      const adherence = adherenceRes.data || [];
-
-      const totalCalls = calls.length;
-      const bizCalls   = calls.filter(c=>c.business_relativity==='Business Related').length;
-
-      const reasonCounts = {};
-      calls.forEach(c => { const k=c.call_reason||'Unknown'; reasonCounts[k]=(reasonCounts[k]||0)+1; });
-
-      // Agent performance summary
-      const agentMap = {};
-      perf.forEach(p => {
-        const name = p.agents?.formal_name || p.agent_id;
-        if (!agentMap[name]) agentMap[name] = {conf:[], missing:0, calls:0};
-        agentMap[name].conf.push(parseFloat(p.conformance||0));
-        agentMap[name].missing += p.missing_sec||0;
-        agentMap[name].calls   += p.calls||0;
-      });
-      const agentSummary = Object.entries(agentMap).map(([name,d]) => {
-        const avgConf = d.conf.length ? (d.conf.reduce((a,b)=>a+b,0)/d.conf.length).toFixed(1) : '—';
-        const exc     = excuses.filter(e=>e.agents?.formal_name===name).length;
-        const qual    = quality.find(q=>q.agents?.formal_name===name)?.score || '—';
-        const devs    = adherence.filter(a=>a.agent_name===name&&!a.is_waived).length;
-        return `${name}: Conf ${avgConf}%, Calls ${d.calls}, Excuses ${exc*2}h, Quality ${qual}, Active Deviations ${devs}`;
-      });
-
-      data = {
-        month: `${monthName} ${year}`,
-        total_calls: totalCalls,
-        business_related: bizCalls,
-        biz_pct: totalCalls ? (bizCalls/totalCalls*100).toFixed(1)+'%' : '0%',
-        top_reasons: Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([r,c])=>`${r}: ${c}`),
-        agent_performance: agentSummary,
-        total_deviations: adherence.filter(a=>!a.is_waived).length,
-        total_waived: adherence.filter(a=>a.is_waived).length,
-      };
-    }
-
-    // Call Claude API
-    const prompt = type === 'daily'
-      ? `You are a professional call center performance analyst. Analyze the following daily data for Nations of Sky call center and write a concise, insightful daily performance report in English. Be specific with numbers. Highlight what's good, what needs attention, and any notable patterns. Keep it professional and actionable.
-
-Daily Data (${data.date}):
-- Working Agents: ${data.working_agents.join(', ')}
-- Total Calls: ${data.total_calls}
-- Business Related: ${data.business_related} (${data.biz_pct})
-- Calls by Reason: ${data.calls_by_reason.join(' | ')}
-- Calls by Agent: ${data.calls_by_agent.join(' | ')}
-- Break Changes (≥15 min diff): ${data.break_changes.length ? data.break_changes.join('; ') : 'None'}
-- Adherence Deviations: ${data.adherence_deviations.length ? data.adherence_deviations.join('; ') : 'None'}
-
-Write a structured report with sections: Executive Summary, Call Performance, Agent Performance, Break & Adherence, and Recommendations.`
-      : `You are a professional call center performance analyst. Analyze the following monthly data for Nations of Sky call center and write a comprehensive monthly performance report in English. Be specific with numbers. Compare performance across agents, identify trends, and provide actionable recommendations.
-
-Monthly Data (${data.month}):
-- Total Calls: ${data.total_calls}
-- Business Related: ${data.business_related} (${data.biz_pct})
-- Top Call Reasons: ${data.top_reasons.join(' | ')}
-- Agent Performance: ${data.agent_performance.join(' | ')}
-- Active Adherence Deviations: ${data.total_deviations}
-- Waived Deviations: ${data.total_waived}
-
-Write a structured report with sections: Executive Summary, Monthly Highlights, Call Analysis, Agent Performance Analysis, Adherence & Compliance, and Strategic Recommendations.`;
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const result = await response.json();
-    const text   = result.content?.[0]?.text || 'Failed to generate report';
-    _aiReportText = text;
-
-    // Render nicely
-    const lines = text.split('\n');
-    let formatted = '';
-    for (const line of lines) {
-      if (line.startsWith('### ')) formatted += `<h4 style="color:var(--gold);margin:16px 0 4px;font-size:13px;font-weight:800;">${line.slice(4)}</h4>`;
-      else if (line.startsWith('## ')) formatted += `<h3 style="color:var(--text);margin:18px 0 6px;font-size:14px;border-bottom:1px solid var(--border);padding-bottom:4px;">${line.slice(3)}</h3>`;
-      else if (line.startsWith('# '))  formatted += `<h2 style="color:var(--gold);margin:0 0 12px;font-size:16px;">${line.slice(2)}</h2>`;
-      else if (line.startsWith('- '))  formatted += `<li style="margin:3px 0;color:var(--text);">${line.slice(2).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</li>`;
-      else if (line === '')            formatted += '<br>';
-      else formatted += `<p style="margin:4px 0;line-height:1.7;color:var(--text);">${line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</p>`;
-    }
-
-    output.innerHTML = `
-      <div style="font-size:13px;line-height:1.7;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
-          <span style="font-size:20px;">🤖</span>
-          <div>
-            <div style="font-weight:800;color:var(--text);">${type === 'daily' ? 'Daily' : 'Monthly'} AI Report</div>
-            <div style="font-size:11px;color:var(--muted);">${type === 'daily' ? today : monthName + ' ' + year} — Generated by Claude AI</div>
-          </div>
-        </div>
-        <p style="margin:8px 0;line-height:1.7;color:var(--text);">${formatted}</p>
-      </div>`;
-
-    document.getElementById('btn-copy-ai').style.display = 'flex';
-
+    showToast('Report copied! Paste in Outlook body','success');
   } catch(e) {
-    output.innerHTML = `<div style="text-align:center;color:#ef4444;padding:40px;"><div style="font-size:24px;margin-bottom:8px;">❌</div><div>${e.message}</div></div>`;
-    showToast('Failed: '+e.message,'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = type === 'daily'
-      ? '<i class="fas fa-calendar-day"></i> Daily Report'
-      : '<i class="fas fa-calendar-alt"></i> Monthly Report';
+    showToast('Copy failed: '+e.message,'error');
   }
 }
 
-function copyAIReport() {
-  if (!_aiReportText) return;
-  navigator.clipboard.writeText(_aiReportText).then(() => {
-    showToast('Report text copied!','success');
-  });
-}
+function drawDoughnut(id,labels,data,instance,setter,colors){if(instance)instance.destroy();const ctx=document.getElementById(id);if(!ctx)return;setter(new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors||CHART_COLORS,borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:'#6B7A99',font:{size:10},padding:10,boxWidth:10}}}}}));}
+function drawBar(id,labels,data,instance,setter){if(instance)instance.destroy();const ctx=document.getElementById(id);if(!ctx)return;setter(new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:CHART_COLORS,borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'rgba(212,175,55,0.08)'},beginAtZero:true}}}}));}
+function drawLine(id,labels,data,instance,setter){if(instance)instance.destroy();const ctx=document.getElementById(id);if(!ctx)return;setter(new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:'#D4AF37',backgroundColor:'rgba(212,175,55,0.08)',fill:true,tension:0.4,pointBackgroundColor:'#D4AF37',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'rgba(212,175,55,0.08)'},beginAtZero:true}}}}));}
+function secToTime(s){if(!s&&s!==0)return '—';return Math.floor(s/3600).toString().padStart(2,'0')+':'+Math.floor((s%3600)/60).toString().padStart(2,'0')+':'+Math.floor(s%60).toString().padStart(2,'0');}
+
+loadAll();
 </script>
 </body>
 </html>
