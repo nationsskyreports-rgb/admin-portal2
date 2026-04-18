@@ -331,6 +331,17 @@ async function loadCallStats(dateFrom, dateTo, monthName, year) {
 
 function buildMatrix() {
   const topReasons = _sortedReasons.slice(0,8).map(e=>e[0]);
+
+  var TH  = 'padding:10px 14px;background:#1E5E9E;color:white;font-weight:700;font-size:12px;text-align:left;white-space:nowrap;';
+  var THC = 'padding:10px 14px;background:#1E5E9E;color:white;font-weight:700;font-size:12px;text-align:center;white-space:nowrap;';
+  var THR = 'padding:10px 14px;background:#1E5E9E;color:white;font-weight:700;font-size:12px;text-align:right;white-space:nowrap;';
+  var TD  = 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;';
+  var TDC = 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;text-align:center;';
+  var TDR = 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;text-align:right;font-weight:700;';
+  var TDPC= 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;text-align:right;color:#666;';
+  var TDF = 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;';
+  var TDFC= 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;text-align:center;color:#1E5E9E;';
+  var TDFR= 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;text-align:right;';
   const agentNames = _sortedAgents.map(e=>e[0]);
   const total = _callsData.length;
   document.getElementById('matrix-head').innerHTML =
@@ -451,39 +462,42 @@ async function copyReport() {
 
   // Reason rows
   const reasonRows = _sortedReasons.map(function(e,i){
-    return '<tr style="background:'+(i%2===0?'#fff':'#f9f9f9')+'"><td style="padding:9px 12px;border-bottom:1px solid #eee;">'+e[0]+'</td><td style="padding:9px 12px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">'+e[1]+'</td><td style="padding:9px 12px;text-align:right;color:#666;border-bottom:1px solid #eee;">'+(total?(e[1]/total*100).toFixed(1)+'%':'0%')+'</td></tr>';
+    var bg = i%2===0?'background:#fff;':'background:#f7f9fc;';
+    return '<tr style="'+bg+'"><td style="'+TD+'">'+e[0]+'</td><td style="'+TDR+'">'+e[1]+'</td><td style="'+TDPC+'">'+(total?(e[1]/total*100).toFixed(1)+'%':'0%')+'</td></tr>';
   }).join('');
 
   // Matrix rows
   const agentNames = _sortedAgents.map(e=>e[0]);
-  const matrixHead = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;">Agent</th>'
-    + topReasons.map(r=>'<th style="padding:6px 8px;background:#1E5E9E;color:white;text-align:center;font-size:10px;">'+r+'</th>').join('')
-    + '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;">Total</th>';
+  const matrixHead = '<th style="'+TH+'">Agent</th>'
+    + topReasons.map(r=>'<th style="'+THC+'">'+r+'</th>').join('')
+    + '<th style="'+THC+'">Total</th>';
   const matrixRows = agentNames.map(function(agent,i){
+    var bg = i%2===0?'background:#fff;':'background:#f7f9fc;';
     const cells = topReasons.map(function(r){
       const cnt = _callsData.filter(c=>c.agent_name===agent&&c.call_reason===r).length;
-      return '<td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee;font-weight:'+(cnt>0?'700':'400')+';color:'+(cnt>0?'#333':'#bbb')+';">'+(cnt||'—')+'</td>';
+      return '<td style="'+TDC+(cnt>0?'font-weight:700;color:#1a1a1a;':'color:#ccc;')+'"><b>'+(cnt>0?cnt:'—')+'</b></td>';
     }).join('');
     const t = _callsData.filter(c=>c.agent_name===agent).length;
-    return '<tr style="background:'+(i%2===0?'#fff':'#f9f9f9')+'"><td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;">'+agent+'</td>'+cells+'<td style="padding:7px 10px;text-align:center;font-weight:800;color:#1E5E9E;border-bottom:1px solid #eee;">'+t+'</td></tr>';
+    return '<tr style="'+bg+'"><td style="'+TD+'font-weight:700;">'+agent+'</td>'+cells+'<td style="'+TDFC+'">'+t+'</td></tr>';
   }).join('');
-  const matrixTotals = topReasons.map(function(r){ return '<td style="padding:8px;text-align:center;font-weight:800;background:#f0f0f0;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
+  const matrixTotals = topReasons.map(function(r){ return '<td style="'+TDFR+'text-align:center;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
 
   // Daily rows
   const dailyMap = {};
   _callsData.forEach(function(c){ const day=c.logged_at&&c.logged_at.split('T')[0]; if(!day)return; if(!dailyMap[day])dailyMap[day]=[]; dailyMap[day].push(c); });
   const sortedDays = Object.keys(dailyMap).sort();
-  const dailyHead = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;">Date</th>'
-    + topReasons.map(r=>'<th style="padding:6px 8px;background:#1E5E9E;color:white;text-align:center;font-size:10px;">'+r+'</th>').join('')
-    + '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;">Total</th>';
+  const dailyHead = '<th style="'+TH+'">Date</th>'
+    + topReasons.map(r=>'<th style="'+THC+'">'+r+'</th>').join('')
+    + '<th style="'+THC+'">Total</th>';
   const dailyRows = sortedDays.map(function(day,i){
+    var bg = i%2===0?'background:#fff;':'background:#f7f9fc;';
     const dayCalls = dailyMap[day]||[];
     const d = new Date(day+'T00:00:00');
     const fmt = d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
-    const cells = topReasons.map(function(r){ const cnt=dayCalls.filter(c=>c.call_reason===r).length; return '<td style="padding:7px 8px;text-align:center;border-bottom:1px solid #eee;font-weight:'+(cnt>0?'700':'400')+';color:'+(cnt>0?'#333':'#bbb')+';">'+(cnt||'—')+'</td>'; }).join('');
-    return '<tr style="background:'+(i%2===0?'#fff':'#f9f9f9')+'"><td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;white-space:nowrap;">'+fmt+'</td>'+cells+'<td style="padding:7px 10px;text-align:center;font-weight:800;color:#1E5E9E;border-bottom:1px solid #eee;">'+dayCalls.length+'</td></tr>';
+    const cells = topReasons.map(function(r){ const cnt=dayCalls.filter(c=>c.call_reason===r).length; return '<td style="'+TDC+(cnt>0?'font-weight:700;color:#1a1a1a;':'color:#ccc;')+'"><b>'+(cnt>0?cnt:'—')+'</b></td>'; }).join('');
+    return '<tr style="'+bg+'"><td style="'+TD+'font-weight:700;white-space:nowrap;">'+fmt+'</td>'+cells+'<td style="'+TDFC+'">'+dayCalls.length+'</td></tr>';
   }).join('');
-  const dailyTotals = topReasons.map(function(r){ return '<td style="padding:8px;text-align:center;font-weight:800;background:#f0f0f0;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
+  const dailyTotals = topReasons.map(function(r){ return '<td style="'+TDFR+'text-align:center;">'+_callsData.filter(c=>c.call_reason===r).length+'</td>'; }).join('');
 
   const generatedDate = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
 
