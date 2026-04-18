@@ -323,8 +323,8 @@ function copyKPIReport() {
     <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;">
       <thead>
         <tr style="background:#1E5E9E;color:white;text-align:center;">
-          <th>Name</th><th>Conf%</th><th>Missing</th><th>Net Missing</th><th>AHT</th>
-          <th>Calls</th><th>Excuses</th><th>Adherence</th><th>Quality</th>
+          <th>Name</th><th>Conf%</th><th>Missing Time</th><th>AHT</th><th>Calls</th>
+          <th>Net Missing</th><th>Excuses</th><th>Adherence</th><th>Quality</th>
           <th>Remaining Annual</th><th>Used MTD</th><th>Used YTD</th>
         </tr>
       </thead>
@@ -354,10 +354,11 @@ function copyKPIReport() {
         <td style="text-align:left;font-weight:700;">${name}</td>
         <td style="background:${confColor};font-weight:700;">${conformance}</td>
         <td style="background:${missColor};font-weight:700;">${missing}</td>
-        <td style="background:${netColor};font-weight:700;">${netMissing}</td>
         <td style="background:#fff3cd;font-weight:700;">${aht}</td>
         <td>${calls}</td>
+        <td style="background:${netColor};font-weight:700;">${netMissing}</td>
         <td>${excuses}</td>
+        <td style="font-weight:700;color:${adherence==='Clean'?'#28a745':'#dc3545'}">${adherence}</td>
         <td style="font-weight:700;">${quality}</td>
         <td style="background:#d4edda;">${remaining}</td>
         <td>${usedMTD}</td>
