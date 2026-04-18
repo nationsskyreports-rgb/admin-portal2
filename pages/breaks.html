@@ -34,7 +34,7 @@ async function loadTeamBreaksFromSB() {
     const breaksData = await breaksRes.json();
     if (!breaksData || !breaksData.length) return;
 
-    const schedRes  = await fetch(
+    const schedRes = await fetch(
       `${SB_URL_SCH}/rest/v1/schedule?shift_date=eq.${today}&select=agent_id,day_type`,
       { headers: { 'apikey': SB_KEY_SCH, 'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}` } }
     );
@@ -50,9 +50,9 @@ async function loadTeamBreaksFromSB() {
       .map(b => ({
         name:   b.agents?.formal_name || 'Unknown',
         shift:  b.shift_time ? b.shift_time.trim() : 'N/A',
-        break1: b.break1 ? b.break1.substring(0,5) : '-',
-        lunch:  b.lunch  ? b.lunch.substring(0,5)  : '-',
-        break2: b.break2 ? b.break2.substring(0,5) : '-',
+        break1: b.break1 ? b.break1.substring(0, 5) : '-',
+        lunch:  b.lunch  ? b.lunch.substring(0, 5)  : '-',
+        break2: b.break2 ? b.break2.substring(0, 5) : '-',
       }));
 
     staff.sort((a, b) => {
@@ -61,7 +61,7 @@ async function loadTeamBreaksFromSB() {
       return aTime.localeCompare(bTime);
     });
     renderTeam(staff);
-  } catch(e) { console.error('Team breaks error:', e); }
+  } catch (e) { console.error('Team breaks error:', e); }
 }
 
 
@@ -69,7 +69,7 @@ async function loadTeamBreaksFromSB() {
 async function loadTodayBreaksFromSB(agentId) {
   const today = getLocalDateStr();
   try {
-    const res  = await fetch(
+    const res = await fetch(
       `${SB_URL_SCH}/rest/v1/breaks?agent_id=eq.${agentId}&break_date=eq.${today}&select=*`,
       { headers: { 'apikey': SB_KEY_SCH, 'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}` } }
     );
@@ -77,12 +77,12 @@ async function loadTodayBreaksFromSB(agentId) {
     if (!data || !data.length) return null;
     const b = data[0];
     return {
-      break1:     b.break1     ? b.break1.substring(0,5)    : null,
-      lunch:      b.lunch      ? b.lunch.substring(0,5)     : null,
-      break2:     b.break2     ? b.break2.substring(0,5)    : null,
-      shift_time: b.shift_time ? b.shift_time.trim()        : null,
+      break1:     b.break1     ? b.break1.substring(0, 5) : null,
+      lunch:      b.lunch      ? b.lunch.substring(0, 5)  : null,
+      break2:     b.break2     ? b.break2.substring(0, 5) : null,
+      shift_time: b.shift_time ? b.shift_time.trim()      : null,
     };
-  } catch(e) { return null; }
+  } catch (e) { return null; }
 }
 
 function applyBreaksToUI(breaks) {
@@ -122,9 +122,9 @@ function subscribeTodayBreaks(agentId) {
       const b = payload.new;
       if (!b || b.break_date !== today) return;
       const updated = {
-        break1: b.break1 ? b.break1.substring(0,5) : null,
-        lunch:  b.lunch  ? b.lunch.substring(0,5)  : null,
-        break2: b.break2 ? b.break2.substring(0,5) : null,
+        break1: b.break1 ? b.break1.substring(0, 5) : null,
+        lunch:  b.lunch  ? b.lunch.substring(0, 5)  : null,
+        break2: b.break2 ? b.break2.substring(0, 5) : null,
       };
       applyBreaksToUI(updated);
       showToast('🔔', 'Breaks Updated!',
@@ -153,7 +153,7 @@ function addMins(timeStr, mins) {
   if (!m) return timeStr;
   const total = parseInt(m[1]) * 60 + parseInt(m[2]) + mins;
   const h = Math.floor(total / 60) % 24, mn = total % 60;
-  return (h < 10 ? '0'+h : h) + ':' + (mn < 10 ? '0'+mn : mn);
+  return (h < 10 ? '0' + h : h) + ':' + (mn < 10 ? '0' + mn : mn);
 }
 
 function showBanner(bannerId, title, sub) {
@@ -172,7 +172,7 @@ function hideBanner(bannerId) {
 
 function sendNotif(title, body) {
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon:'logo.png', badge:'icon-192.png', vibrate:[200,100,200] });
+    new Notification(title, { body, icon: 'logo.png', badge: 'icon-192.png', vibrate: [200, 100, 200] });
   }
 }
 
@@ -183,23 +183,23 @@ function checkBreaks() {
 
   const b1 = parseBreakTime(currentBreaks.break1);
   if (b1 !== null) {
-    if (now === b1-1)  fire('break1_warn',  () => { sendNotif('⏰ Break 1 in 1 minute!', 'Starting at '+currentBreaks.break1); showBanner('break-notif','⏰ Break 1 in 1 minute!','Starting at '+currentBreaks.break1); showToast('🔔','Break 1 starts in 1 minute!','Get ready — '+currentBreaks.break1,'warn',55000); });
-    if (now === b1)    fire('break1_start', () => { sendNotif('☕ Break 1 has started!','15 min — back at '+addMins(currentBreaks.break1,15)); hideBanner('break-notif'); showBanner('break-notif','☕ Break 1 has started!','15 min — back at '+addMins(currentBreaks.break1,15)); showToast('☕','Break 1 has started!','15 min. Back at '+addMins(currentBreaks.break1,15),'success',10000); });
-    if (now === b1+15) fire('break1_end',   () => { sendNotif('⏰ Break 1 is over!','Back to work!'); hideBanner('break-notif'); showToast('⏰','Break 1 is over!','Back to work!','info',8000); });
+    if (now === b1 - 1)  fire('break1_warn',  () => { sendNotif('⏰ Break 1 in 1 minute!', 'Starting at ' + currentBreaks.break1); showBanner('break-notif', '⏰ Break 1 in 1 minute!', 'Starting at ' + currentBreaks.break1); showToast('🔔', 'Break 1 starts in 1 minute!', 'Get ready — ' + currentBreaks.break1, 'warn', 55000); });
+    if (now === b1)       fire('break1_start', () => { sendNotif('☕ Break 1 has started!', '15 min — back at ' + addMins(currentBreaks.break1, 15)); hideBanner('break-notif'); showBanner('break-notif', '☕ Break 1 has started!', '15 min — back at ' + addMins(currentBreaks.break1, 15)); showToast('☕', 'Break 1 has started!', '15 min. Back at ' + addMins(currentBreaks.break1, 15), 'success', 10000); });
+    if (now === b1 + 15) fire('break1_end',   () => { sendNotif('⏰ Break 1 is over!', 'Back to work!'); hideBanner('break-notif'); showToast('⏰', 'Break 1 is over!', 'Back to work!', 'info', 8000); });
   }
 
   const ln = parseBreakTime(currentBreaks.lunch);
   if (ln !== null) {
-    if (now === ln-1)  fire('lunch_warn',  () => { sendNotif('⏰ Lunch in 1 minute!','Starting at '+currentBreaks.lunch); showBanner('break-notif','⏰ Lunch in 1 minute!','Starting at '+currentBreaks.lunch); showToast('🔔','Lunch Break starts in 1 minute!','Get ready — '+currentBreaks.lunch,'warn',55000); });
-    if (now === ln)    fire('lunch_start', () => { sendNotif('🍽️ Lunch has started!','30 min — back at '+addMins(currentBreaks.lunch,30)); hideBanner('break-notif'); showBanner('break-notif','🍽️ Lunch has started!','30 min — back at '+addMins(currentBreaks.lunch,30)); showToast('🍽️','Lunch Break has started!','30 min. Back at '+addMins(currentBreaks.lunch,30),'success',10000); });
-    if (now === ln+30) fire('lunch_end',   () => { sendNotif('⏰ Lunch is over!','Back to work!'); hideBanner('break-notif'); showToast('⏰','Lunch Break is over!','Back to work!','info',8000); });
+    if (now === ln - 1)  fire('lunch_warn',  () => { sendNotif('⏰ Lunch in 1 minute!', 'Starting at ' + currentBreaks.lunch); showBanner('break-notif', '⏰ Lunch in 1 minute!', 'Starting at ' + currentBreaks.lunch); showToast('🔔', 'Lunch Break starts in 1 minute!', 'Get ready — ' + currentBreaks.lunch, 'warn', 55000); });
+    if (now === ln)       fire('lunch_start', () => { sendNotif('🍽️ Lunch has started!', '30 min — back at ' + addMins(currentBreaks.lunch, 30)); hideBanner('break-notif'); showBanner('break-notif', '🍽️ Lunch has started!', '30 min — back at ' + addMins(currentBreaks.lunch, 30)); showToast('🍽️', 'Lunch Break has started!', '30 min. Back at ' + addMins(currentBreaks.lunch, 30), 'success', 10000); });
+    if (now === ln + 30) fire('lunch_end',   () => { sendNotif('⏰ Lunch is over!', 'Back to work!'); hideBanner('break-notif'); showToast('⏰', 'Lunch Break is over!', 'Back to work!', 'info', 8000); });
   }
 
   const b2 = parseBreakTime(currentBreaks.break2);
   if (b2 !== null) {
-    if (now === b2-1)  fire('break2_warn',  () => { sendNotif('⏰ Break 2 in 1 minute!','Starting at '+currentBreaks.break2); showBanner('break-notif','⏰ Break 2 in 1 minute!','Starting at '+currentBreaks.break2); showToast('🔔','Break 2 starts in 1 minute!','Get ready — '+currentBreaks.break2,'warn',55000); });
-    if (now === b2)    fire('break2_start', () => { sendNotif('☕ Break 2 has started!','15 min — back at '+addMins(currentBreaks.break2,15)); hideBanner('break-notif'); showBanner('break-notif','☕ Break 2 has started!','15 min — back at '+addMins(currentBreaks.break2,15)); showToast('☕','Break 2 has started!','15 min. Back at '+addMins(currentBreaks.break2,15),'success',10000); });
-    if (now === b2+15) fire('break2_end',   () => { sendNotif('⏰ Break 2 is over!','Back to work!'); hideBanner('break-notif'); showToast('⏰','Break 2 is over!','Back to work!','info',8000); });
+    if (now === b2 - 1)  fire('break2_warn',  () => { sendNotif('⏰ Break 2 in 1 minute!', 'Starting at ' + currentBreaks.break2); showBanner('break-notif', '⏰ Break 2 in 1 minute!', 'Starting at ' + currentBreaks.break2); showToast('🔔', 'Break 2 starts in 1 minute!', 'Get ready — ' + currentBreaks.break2, 'warn', 55000); });
+    if (now === b2)       fire('break2_start', () => { sendNotif('☕ Break 2 has started!', '15 min — back at ' + addMins(currentBreaks.break2, 15)); hideBanner('break-notif'); showBanner('break-notif', '☕ Break 2 has started!', '15 min — back at ' + addMins(currentBreaks.break2, 15)); showToast('☕', 'Break 2 has started!', '15 min. Back at ' + addMins(currentBreaks.break2, 15), 'success', 10000); });
+    if (now === b2 + 15) fire('break2_end',   () => { sendNotif('⏰ Break 2 is over!', 'Back to work!'); hideBanner('break-notif'); showToast('⏰', 'Break 2 is over!', 'Back to work!', 'info', 8000); });
   }
 
   checkShiftEnd();
@@ -210,18 +210,23 @@ function checkShiftEnd() {
   const nowMin      = nowMinutes();
   const shiftEndMin = Math.floor(shiftEndSecs / 60);
   const fire        = (key, fn) => { if (!_notifFired[key]) { _notifFired[key] = true; fn(); } };
-  if (nowMin === shiftEndMin-15) fire('shift_warn', () => { showBanner('shift-end-notif','⏰ Shift ends in 15 minutes!','Start wrapping up.'); showToast('⏰','Shift ends in 15 minutes!','Start wrapping things up.','warn',12000); });
-  if (nowMin === shiftEndMin)    fire('shift_end',  () => { showBanner('shift-end-notif','🚨 Your shift has ended!','Please logout now.'); showToast('🚨','Your shift has ended!','Please logout now.','danger',0); shiftEndNotified = true; });
-  if (shiftEndNotified && nowMin === shiftEndMin+10) fire('shift_late', () => { showToast('🚨',"Still logged in!",'Shift ended 10 min ago. Please logout!','danger',0); });
+  if (nowMin === shiftEndMin - 15) fire('shift_warn', () => { showBanner('shift-end-notif', '⏰ Shift ends in 15 minutes!', 'Start wrapping up.'); showToast('⏰', 'Shift ends in 15 minutes!', 'Start wrapping things up.', 'warn', 12000); });
+  if (nowMin === shiftEndMin)      fire('shift_end',  () => { showBanner('shift-end-notif', '🚨 Your shift has ended!', 'Please logout now.'); showToast('🚨', 'Your shift has ended!', 'Please logout now.', 'danger', 0); shiftEndNotified = true; });
+  if (shiftEndNotified && nowMin === shiftEndMin + 10) fire('shift_late', () => { showToast('🚨', "Still logged in!", 'Shift ended 10 min ago. Please logout!', 'danger', 0); });
 }
 
 function startBreakChecker(breaks) {
   currentBreaks = breaks;
+  // FIX: reset all fired flags when breaks change
   Object.keys(_notifFired).forEach(k => _notifFired[k] = false);
   shiftEndNotified = false;
   if (breakCheckTimer) clearInterval(breakCheckTimer);
+
+  // FIX: run every 60s (once per minute) instead of 30s to avoid duplicate fires
+  // و run immediately أول ما يبدأ
   checkBreaks();
-  breakCheckTimer = setInterval(checkBreaks, 30000);
+  breakCheckTimer = setInterval(checkBreaks, 60000);
+
   // Silent team refresh every 5 minutes
   if (window._teamRefreshTimer) clearInterval(window._teamRefreshTimer);
   window._teamRefreshTimer = setInterval(() => {
@@ -234,10 +239,10 @@ function playNotifSoundTyped(type) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const configs = {
-      info:   [{f:600,t:0},{f:800,t:0.15}],
-      warn:   [{f:800,t:0},{f:700,t:0.2},{f:800,t:0.4}],
-      danger: [{f:400,t:0},{f:300,t:0.15},{f:400,t:0.3},{f:300,t:0.45}],
-      success:[{f:600,t:0},{f:800,t:0.1},{f:1000,t:0.2}]
+      info:    [{ f: 600, t: 0 }, { f: 800, t: 0.15 }],
+      warn:    [{ f: 800, t: 0 }, { f: 700, t: 0.2 }, { f: 800, t: 0.4 }],
+      danger:  [{ f: 400, t: 0 }, { f: 300, t: 0.15 }, { f: 400, t: 0.3 }, { f: 300, t: 0.45 }],
+      success: [{ f: 600, t: 0 }, { f: 800, t: 0.1 }, { f: 1000, t: 0.2 }]
     };
     (configs[type] || configs.info).forEach(b => {
       const osc = ctx.createOscillator(), gain = ctx.createGain();
@@ -247,7 +252,7 @@ function playNotifSoundTyped(type) {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + b.t + 0.35);
       osc.start(ctx.currentTime + b.t); osc.stop(ctx.currentTime + b.t + 0.4);
     });
-  } catch(e) {}
+  } catch (e) {}
 }
 
 function stopNotifSound() { notifPlaying = false; isMuted = false; notifSoundCount = 0; }
@@ -298,19 +303,19 @@ function showBreakTimeModal() {
   box.querySelector('#bm-cancel').onclick = close; ov.onclick = close;
   box.querySelector('#bm-confirm').onclick = () => {
     const h = box.querySelector('#bh').value, m = box.querySelector('#bm').value;
-    const time = (h.length < 2 ? '0'+h : h) + ':' + (m.length < 2 ? '0'+m : m);
+    const time = (h.length < 2 ? '0' + h : h) + ':' + (m.length < 2 ? '0' + m : m);
     close(); confirmBreakTime(time);
   };
 }
 
 function timeStrToMins(t) {
   if (!t) return 0;
-  const p = t.substring(0,5).split(':');
+  const p = t.substring(0, 5).split(':');
   return (+p[0]) * 60 + (+p[1]);
 }
 
 function minsToTimeStr(m) {
-  return Math.floor(m/60).toString().padStart(2,'0') + ':' + (m%60).toString().padStart(2,'0');
+  return Math.floor(m / 60).toString().padStart(2, '0') + ':' + (m % 60).toString().padStart(2, '0');
 }
 
 async function findAvailableBreakSlot(requestedTime, breakType, agentShiftStart, agentShiftEnd) {
@@ -320,7 +325,6 @@ async function findAvailableBreakSlot(requestedTime, breakType, agentShiftStart,
   const durMap = { 'Break 1': 15, 'Lunch': 30, 'Break 2': 15 };
   const dur    = durMap[breakType];
 
-  // جيب الـ breaks + الـ schedule عشان نشوف مين شغال فعلاً
   const [breaksRes, schedRes] = await Promise.all([
     fetch(`${SB_URL_SCH}/rest/v1/breaks?break_date=eq.${today}&select=*`, { headers: { 'apikey': SB_KEY_SCH, 'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}` } }),
     fetch(`${SB_URL_SCH}/rest/v1/schedule?shift_date=eq.${today}&select=agent_id,day_type`, { headers: { 'apikey': SB_KEY_SCH, 'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}` } }),
@@ -328,12 +332,11 @@ async function findAvailableBreakSlot(requestedTime, breakType, agentShiftStart,
   const allBreaksRaw = await breaksRes.json();
   const schedData    = await schedRes.json();
 
-  // بنى map لـ day_type لكل agent
   const dayTypeMap = {};
   (schedData || []).forEach(s => { dayTypeMap[s.agent_id] = s.day_type; });
 
   // فلتر — بس اللي شيفتهم Work النهارده
-  const allBreaks = (allBreaksRaw || []).filter(b => dayTypeMap[b.agent_id] === 'Work');
+  const allBreaks    = (allBreaksRaw || []).filter(b => dayTypeMap[b.agent_id] === 'Work');
   const workingCount = allBreaks.length;
 
   const shiftStart   = timeStrToMins(agentShiftStart);
@@ -341,53 +344,76 @@ async function findAvailableBreakSlot(requestedTime, breakType, agentShiftStart,
   const noBreakStart = shiftStart + 60;
   const noBreakEnd   = shiftEnd   - 60;
 
-  // الحد الأدنى للـ coverage
   const minOnQueue = workingCount >= 4 ? 2 : workingCount === 3 ? 1 : 0;
 
   function hasConflict(slotMins) {
-    if (minOnQueue === 0) return false; // لو أقل من 3 شغالين — مفيش قيود
+    if (minOnQueue === 0) return false;
     const slotEnd = slotMins + dur;
     let onBreak = 0;
     allBreaks.forEach(b => {
       if (!b[col]) return;
-      const bStart = timeStrToMins(b[col].substring(0,5));
-      const bEnd   = bStart + dur;
-      const overlap = !(slotEnd <= bStart || slotMins >= bEnd);
-      if (overlap) { const overlapMins = Math.min(slotEnd, bEnd) - Math.max(slotMins, bStart); if (overlapMins > 15) onBreak++; }
+      const bStart   = timeStrToMins(b[col].substring(0, 5));
+      const bEnd     = bStart + dur;
+      const overlap  = !(slotEnd <= bStart || slotMins >= bEnd);
+      if (overlap) {
+        const overlapMins = Math.min(slotEnd, bEnd) - Math.max(slotMins, bStart);
+        if (overlapMins > 15) onBreak++;
+      }
     });
     // +1 للـ agent نفسه اللي بيطلب
     return (workingCount - (onBreak + 1)) < minOnQueue;
   }
 
-  let candidate = timeStrToMins(requestedTime);
-  if (!hasConflict(candidate) && candidate >= noBreakStart && candidate <= noBreakEnd - dur) return null;
+  const candidate = timeStrToMins(requestedTime);
 
+  // FIX: كانت بترجع null حتى لو في conflict — المنطق كان معكوس
+  // لو الوقت المطلوب مفيش conflict وجوا الـ window — ابعت null (يعني متاح، امشي)
+  const withinWindow = candidate >= noBreakStart && candidate <= noBreakEnd - dur;
+  if (withinWindow && !hasConflict(candidate)) return null;
+
+  // لو في conflict أو برا الـ window — دور على أقرب وقت متاح
   for (let i = 1; i <= 8; i++) {
     const next = candidate + (i * 15);
     if (next > noBreakEnd - dur) break;
     if (!hasConflict(next)) return minsToTimeStr(next);
   }
-  return null;
+
+  // FIX: لو مفيش وقت متاح قدام — جرب ورا
+  for (let i = 1; i <= 4; i++) {
+    const prev = candidate - (i * 15);
+    if (prev < noBreakStart) break;
+    if (!hasConflict(prev)) return minsToTimeStr(prev);
+  }
+
+  return 'unavailable'; // مفيش وقت متاح خالص
 }
 
 async function confirmBreakTime(time) {
-  if (!schMyAgentId) { showToast('❌','Error','Agent not found!','danger',4000); return; }
+  if (!schMyAgentId) { showToast('❌', 'Error', 'Agent not found!', 'danger', 4000); return; }
   const today  = getLocalDateStr();
   const colMap = { 'Break 1': 'break1', 'Lunch': 'lunch', 'Break 2': 'break2' };
   const col    = colMap[selectedBreakType];
   const btn    = document.getElementById('swapBtn');
   const msg    = document.getElementById('swap-msg');
-  if (!col) { showToast('❌','Error','Select break type first!','danger',4000); return; }
+  if (!col) { showToast('❌', 'Error', 'Select break type first!', 'danger', 4000); return; }
 
   setButtonLoading(btn, true, 'Updating...');
   msg.style.color = 'var(--muted)'; msg.innerText = 'Checking availability...';
 
   try {
-    const shiftText  = document.getElementById('br-shift').innerText.replace('SHIFT: ','');
+    const shiftText  = document.getElementById('br-shift').innerText.replace('SHIFT: ', '');
     const shiftParts = shiftText.split(' - ');
     const shiftStart = shiftParts[0]?.trim() || '00:00';
     const shiftEnd   = shiftParts[1]?.trim() || '23:00';
     const suggestion = await findAvailableBreakSlot(time, selectedBreakType, shiftStart, shiftEnd);
+
+    // FIX: handle 'unavailable' case separately
+    if (suggestion === 'unavailable') {
+      setButtonLoading(btn, false, '🔄 Swap Break');
+      msg.style.color = 'var(--danger)';
+      msg.innerText   = '❌ مفيش وقت متاح دلوقتي، حاول تاني بعدين.';
+      return;
+    }
 
     if (suggestion) {
       setButtonLoading(btn, false, '🔄 Swap Break');
@@ -404,37 +430,47 @@ async function confirmBreakTime(time) {
       return;
     }
 
+    // الوقت متاح — امشي بالـ PATCH
     msg.innerText = 'Updating...';
     const res = await fetch(`${SB_URL_SCH}/rest/v1/breaks?agent_id=eq.${schMyAgentId}&break_date=eq.${today}`, {
       method: 'PATCH',
-      headers: { 'apikey': SB_KEY_SCH, 'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      headers: {
+        'apikey': SB_KEY_SCH,
+        'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
       body: JSON.stringify({ [col]: time + ':00', updated_at: new Date().toISOString() })
     });
-    if (!res.ok) throw new Error('Update failed');
-     // سجل الـ request في Supabase
-await fetch(`${SB_URL_SCH}/rest/v1/requests`, {
-  method: 'POST',
-  headers: {
-    'apikey': SB_KEY_SCH,
-    'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}`,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=minimal'
-  },
-  body: JSON.stringify({
-    agent_id:   schMyAgentId,
-    agent_name: document.getElementById('user-name').innerText.trim(),
-    type:       'Break Change',
-    status:     'Approved',
-    details: JSON.stringify({
-      break_type: selectedBreakType,
-      new_time:   time,
-      date:       today
-    }),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  })
-});
 
+    // FIX: تأكد إن الـ PATCH نجح الأول قبل ما تسجل الـ request
+    if (!res.ok) throw new Error('Update failed');
+
+    // سجل الـ request في Supabase — بس بعد ما الـ PATCH ينجح
+    await fetch(`${SB_URL_SCH}/rest/v1/requests`, {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY_SCH,
+        'Authorization': `Bearer ${window._authToken || SB_KEY_SCH}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        agent_id:   schMyAgentId,
+        agent_name: document.getElementById('user-name').innerText.trim(),
+        type:       'Break Change',
+        status:     'Approved',
+        details: JSON.stringify({
+          break_type: selectedBreakType,
+          new_time:   time,
+          date:       today
+        }),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    });
+
+    // حدّث الـ UI
     if (currentBreaks) currentBreaks[col] = time;
     const elMap = { break1: 'br-break1', lunch: 'br-lunch', break2: 'br-break2' };
     const el = document.getElementById(elMap[col]);
@@ -442,15 +478,16 @@ await fetch(`${SB_URL_SCH}/rest/v1/requests`, {
 
     msg.style.color = 'var(--accent)'; msg.innerText = '✅ Updated!';
     showToast('✅', selectedBreakType + ' Updated!', 'New time: ' + time, 'success', 4000);
-    loadTeamBreaksFromSB(); 
+    loadTeamBreaksFromSB();
     selectedBreakType = '';
     document.querySelectorAll('.break-type-btn').forEach(b => b.classList.remove('selected'));
 
-  } catch(e) {
+  } catch (e) {
+    console.error('confirmBreakTime error:', e);
     msg.style.color = 'var(--danger)'; msg.innerText = '❌ Failed. Try again.';
     showToast('❌', 'Update Failed!', 'Please try again.', 'danger', 4000);
   } finally {
     setButtonLoading(btn, false, '🔄 Swap Break');
-    setTimeout(() => msg.innerText = '', 4000);
+    setTimeout(() => { if (msg) msg.innerText = ''; }, 4000);
   }
 }
