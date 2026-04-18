@@ -599,85 +599,138 @@ async function sendReportToManagers() {
   const bizPct    = total?(bizCalls/total*100).toFixed(1)+'%':'0%';
   const nonBizPct = total?(nonBizCalls/total*100).toFixed(1)+'%':'0%';
 
-  const reasonRows = sortedReasons.map(([reason,count])=>
-    `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">${reason}</td>
-     <td style="padding:8px 12px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">${count}</td>
-     <td style="padding:8px 12px;text-align:right;color:#888;border-bottom:1px solid #eee;">${total?(count/total*100).toFixed(1)+'%':'0%'}</td></tr>`
+  // MTD Calls by Reason rows
+  const reasonRows = sortedReasons.map(([reason,count], i) =>
+    `<tr style="background:${i%2===0?'#ffffff':'#f9f9f9'}">
+      <td style="padding:9px 12px;border-bottom:1px solid #e5e5e5;">${reason}</td>
+      <td style="padding:9px 12px;text-align:right;font-weight:700;border-bottom:1px solid #e5e5e5;">${count}</td>
+      <td style="padding:9px 12px;text-align:right;color:#666;border-bottom:1px solid #e5e5e5;">${total?(count/total*100).toFixed(1)+'%':'0%'}</td>
+    </tr>`
   ).join('');
 
-  const agentRows = sortedAgents.map(([agent,count])=>
-    `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">${agent}</td>
-     <td style="padding:8px 12px;text-align:right;font-weight:700;border-bottom:1px solid #eee;">${count}</td>
-     <td style="padding:8px 12px;text-align:right;color:#888;border-bottom:1px solid #eee;">${total?(count/total*100).toFixed(1)+'%':'0%'}</td></tr>`
-  ).join('');
+  // Agent × Reason Matrix
+  const agentNames  = sortedAgents.map(e=>e[0]);
+  const topReasons  = sortedReasons.slice(0,8).map(e=>e[0]);
+  const matrixHead  = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;font-size:11px;">Agent</th>' +
+    topReasons.map(r=>`<th style="padding:8px 6px;background:#1E5E9E;color:white;text-align:center;font-size:10px;white-space:nowrap;max-width:70px;">${r}</th>`).join('') +
+    '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;font-size:11px;">Total</th>';
+  const matrixRows = agentNames.map((agent,i) => {
+    const cells = topReasons.map(reason => {
+      const cnt = _callsData.filter(c=>c.agent_name===agent&&c.call_reason===reason).length;
+      return `<td style="padding:7px 6px;text-align:center;border-bottom:1px solid #eee;font-weight:${cnt>0?'700':'400'};color:${cnt>0?'#333':'#bbb'};">${cnt||'—'}</td>`;
+    }).join('');
+    const agentTotal = _callsData.filter(c=>c.agent_name===agent).length;
+    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;font-size:12px;">${agent}</td>
+      ${cells}
+      <td style="padding:7px 10px;text-align:center;border-bottom:1px solid #eee;font-weight:800;color:#1E5E9E;">${agentTotal}</td>
+    </tr>`;
+  }).join('');
+  const matrixTotals = topReasons.map(reason => {
+    const cnt = _callsData.filter(c=>c.call_reason===reason).length;
+    return `<td style="padding:8px 6px;text-align:center;font-weight:800;background:#f0f0f0;">${cnt}</td>`;
+  }).join('');
+
+  // Daily Detail Table
+  const dailyMap = {};
+  _callsData.forEach(c => {
+    const day = c.logged_at?.split('T')[0];
+    if (!day) return;
+    if (!dailyMap[day]) dailyMap[day] = {};
+    const r = c.call_reason||'Unknown';
+    dailyMap[day][r] = (dailyMap[day][r]||0)+1;
+  });
+  const sortedDays = Object.keys(dailyMap).sort();
+  const dailyHead = '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:left;font-size:11px;">Date</th>' +
+    topReasons.map(r=>`<th style="padding:8px 6px;background:#1E5E9E;color:white;text-align:center;font-size:10px;">${r}</th>`).join('') +
+    '<th style="padding:8px 10px;background:#1E5E9E;color:white;text-align:center;font-size:11px;">Total</th>';
+  const dailyRows = sortedDays.map((day,i) => {
+    const d    = new Date(day+'T00:00:00');
+    const fmt  = d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
+    const dayCalls = _callsData.filter(c=>c.logged_at?.startsWith(day));
+    const cells = topReasons.map(reason => {
+      const cnt = dayCalls.filter(c=>c.call_reason===reason).length;
+      return `<td style="padding:7px 6px;text-align:center;border-bottom:1px solid #eee;font-weight:${cnt>0?'700':'400'};color:${cnt>0?'#333':'#bbb'};">${cnt||'—'}</td>`;
+    }).join('');
+    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+      <td style="padding:7px 10px;border-bottom:1px solid #eee;font-weight:700;font-size:11px;white-space:nowrap;">${fmt}</td>
+      ${cells}
+      <td style="padding:7px 10px;text-align:center;border-bottom:1px solid #eee;font-weight:800;color:#1E5E9E;">${dayCalls.length}</td>
+    </tr>`;
+  }).join('');
+  const dailyTotals = topReasons.map(reason => {
+    const cnt = _callsData.filter(c=>c.call_reason===reason).length;
+    return `<td style="padding:8px 6px;text-align:center;font-weight:800;background:#f0f0f0;">${cnt}</td>`;
+  }).join('');
 
   const html = `
-<div style="font-family:Arial,sans-serif;font-size:13px;max-width:700px;">
-  <h2 style="color:#1E5E9E;margin-bottom:4px;">📊 Call Report — ${monthName} ${year}</h2>
-  <p style="color:#888;margin-bottom:20px;">Nations of Sky — Monthly Performance Report</p>
+<div style="font-family:Arial,sans-serif;font-size:13px;max-width:900px;">
 
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+  <h2 style="color:#1E5E9E;margin-bottom:2px;font-size:18px;">📊 Call Report — ${monthName} ${year}</h2>
+  <p style="color:#888;margin-bottom:20px;font-size:12px;">Nations of Sky — Monthly Performance Report</p>
+
+  <!-- Summary Cards -->
+  <table style="width:100%;border-collapse:separate;border-spacing:8px;margin-bottom:24px;">
     <tr>
-      <td style="background:#1E5E9E;color:white;padding:14px 18px;border-radius:8px;text-align:center;width:25%;">
-        <div style="font-size:28px;font-weight:900;">${total}</div>
-        <div style="font-size:11px;margin-top:2px;">Total Calls</div>
+      <td style="background:#1E5E9E;color:white;padding:16px;border-radius:8px;text-align:center;">
+        <div style="font-size:32px;font-weight:900;line-height:1;">${total}</div>
+        <div style="font-size:11px;margin-top:6px;opacity:.9;">Total Calls</div>
       </td>
-      <td style="width:2%;"></td>
-      <td style="background:#10b981;color:white;padding:14px 18px;border-radius:8px;text-align:center;width:25%;">
-        <div style="font-size:28px;font-weight:900;">${bizPct}</div>
-        <div style="font-size:11px;margin-top:2px;">Business Related</div>
+      <td style="background:#10b981;color:white;padding:16px;border-radius:8px;text-align:center;">
+        <div style="font-size:32px;font-weight:900;line-height:1;">${bizPct}</div>
+        <div style="font-size:11px;margin-top:6px;opacity:.9;">Business Related</div>
       </td>
-      <td style="width:2%;"></td>
-      <td style="background:#ef4444;color:white;padding:14px 18px;border-radius:8px;text-align:center;width:25%;">
-        <div style="font-size:28px;font-weight:900;">${nonBizPct}</div>
-        <div style="font-size:11px;margin-top:2px;">Non-Business</div>
+      <td style="background:#ef4444;color:white;padding:16px;border-radius:8px;text-align:center;">
+        <div style="font-size:32px;font-weight:900;line-height:1;">${nonBizPct}</div>
+        <div style="font-size:11px;margin-top:6px;opacity:.9;">Non-Business</div>
       </td>
-      <td style="width:2%;"></td>
-      <td style="background:#D4AF37;color:white;padding:14px 18px;border-radius:8px;text-align:center;width:25%;">
-        <div style="font-size:28px;font-weight:900;">${leads}</div>
-        <div style="font-size:11px;margin-top:2px;">Project Leads</div>
+      <td style="background:#D4AF37;color:white;padding:16px;border-radius:8px;text-align:center;">
+        <div style="font-size:32px;font-weight:900;line-height:1;">${leads}</div>
+        <div style="font-size:11px;margin-top:6px;opacity:.9;">Project Leads</div>
       </td>
     </tr>
   </table>
 
-  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin-bottom:12px;">MTD — Calls by Reason</h3>
-  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:20px;">
-    <thead>
-      <tr style="background:#1E5E9E;color:white;">
-        <th style="padding:10px 12px;text-align:left;">Call Reason</th>
-        <th style="padding:10px 12px;text-align:right;">No. Calls</th>
-        <th style="padding:10px 12px;text-align:right;">%</th>
-      </tr>
-    </thead>
+  <!-- MTD Calls by Reason -->
+  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">MTD — Calls by Reason</h3>
+  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:28px;font-size:12px;">
+    <thead><tr>${'<th style="padding:10px 12px;text-align:left;background:#1E5E9E;color:white;">Call Reason</th><th style="padding:10px 12px;text-align:right;background:#1E5E9E;color:white;">No. Calls</th><th style="padding:10px 12px;text-align:right;background:#1E5E9E;color:white;">%</th>'}</tr></thead>
     <tbody>${reasonRows}</tbody>
-    <tfoot>
-      <tr style="background:#f0f0f0;font-weight:800;">
-        <td style="padding:10px 12px;">Grand Total</td>
-        <td style="padding:10px 12px;text-align:right;">${total}</td>
-        <td style="padding:10px 12px;text-align:right;">100%</td>
-      </tr>
-    </tfoot>
+    <tfoot><tr style="background:#f0f0f0;font-weight:800;">
+      <td style="padding:10px 12px;">Grand Total</td>
+      <td style="padding:10px 12px;text-align:right;">${total}</td>
+      <td style="padding:10px 12px;text-align:right;">100%</td>
+    </tr></tfoot>
   </table>
 
-  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin-bottom:12px;">MTD — Calls by Agent</h3>
-  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:20px;">
-    <thead>
-      <tr style="background:#1E5E9E;color:white;">
-        <th style="padding:10px 12px;text-align:left;">Agent</th>
-        <th style="padding:10px 12px;text-align:right;">No. Calls</th>
-        <th style="padding:10px 12px;text-align:right;">%</th>
-      </tr>
-    </thead>
-    <tbody>${agentRows}</tbody>
-    <tfoot>
-      <tr style="background:#f0f0f0;font-weight:800;">
-        <td style="padding:10px 12px;">Grand Total</td>
-        <td style="padding:10px 12px;text-align:right;">${total}</td>
-        <td style="padding:10px 12px;text-align:right;">100%</td>
-      </tr>
-    </tfoot>
+  <!-- Agent × Reason Matrix -->
+  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Agent × Call Reason Matrix</h3>
+  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:28px;font-size:11px;">
+    <thead><tr>${matrixHead}</tr></thead>
+    <tbody>${matrixRows}</tbody>
+    <tfoot><tr style="background:#f0f0f0;font-weight:800;">
+      <td style="padding:8px 10px;">Total</td>
+      ${matrixTotals}
+      <td style="padding:8px 10px;text-align:center;font-weight:800;">${total}</td>
+    </tr></tfoot>
   </table>
 
+  <!-- Daily Detail Table -->
+  <h3 style="color:#1E5E9E;border-bottom:2px solid #1E5E9E;padding-bottom:6px;margin:0 0 12px;font-size:14px;">Daily Detail — ${monthName} ${year}</h3>
+  <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:28px;font-size:11px;">
+    <thead><tr>${dailyHead}</tr></thead>
+    <tbody>${dailyRows}</tbody>
+    <tfoot><tr style="background:#f0f0f0;font-weight:800;">
+      <td style="padding:8px 10px;">Total</td>
+      ${dailyTotals}
+      <td style="padding:8px 10px;text-align:center;font-weight:800;">${total}</td>
+    </tr></tfoot>
+  </table>
+
+  <p style="color:#aaa;font-size:11px;margin-top:20px;border-top:1px solid #eee;padding-top:12px;">
+    Generated by NOS Admin Portal — ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}
+  </p>
+</div>`;
   <p style="color:#888;font-size:11px;margin-top:20px;">Generated by NOS Admin Portal — ${new Date().toLocaleDateString('en-GB')}</p>
 </div>`;
 
