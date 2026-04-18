@@ -457,10 +457,10 @@ async function loadKPIs(monthName, year) {
         const avgConf = agentPerf.reduce((s,p)=>s+parseFloat(p.conformance||0),0)/agentPerf.length;
         conformance   = avgConf.toFixed(1)+'%';
 
-        // ── حساب الـ Net Missing الصح ──
-        // Total Missing من الـ daily_performance (بعد الـ excuse)
+        // ── calculate the Net Missing correct ──
+        // Total Missing from the daily_performance (after the excuse)
         const totalMissingSec = agentPerf.reduce((s,p)=>s+(p.missing_sec||0),0);
-        // Total Extra = الأيام اللي اشتغل فيها أكتر من الـ target
+        // Total Extra = days worked more than target
         const totalExtraSec   = agentPerf.reduce((s,p)=>s+Math.max(0,(p.active_sec||0)-(p.target_sec||0)),0);
         // Net Missing = Missing - Extra
         const netMissingSec   = Math.max(0, totalMissingSec - totalExtraSec);
@@ -471,12 +471,12 @@ async function loadKPIs(monthName, year) {
         totalCalls = agentPerf.reduce((s,p)=>s+(p.calls||0),0);
       }
 
-      // الـ Excuses للعرض بس (مش للحساب — الحساب اتعمل في xCALLY)
+      // Excuses for display only — calculation done in xCALLY
       const agentExcuses = excusesData.filter(e=>e.agent_id===agent.id);
       const excHours     = agentExcuses.length * 2;
       const excStr       = excHours > 0 ? excHours+' Hours' : 'None';
 
-      // Net Missing = missingTime مباشرة (الـ excuse اتخصم خلاص في xCALLY)
+      // Net Missing = missingTime directly (excuse deducted in xCALLY)
       const netMissing = missingTime;
 
       const ann        = annData.find(a=>a.agent_id===agent.id)||{};
@@ -768,7 +768,7 @@ async function sendToAll() {
   const year    = document.getElementById('year-filter').value;
   const reports = buildReportData();
 
-  // ← الإيميلات كلها في TO
+  // ← all emails in TO
   const allEmails = reports
     .filter(r => r.email && r.email.trim() !== '' && r.email !== 'no email')
     .map(r => r.email.trim())
@@ -781,7 +781,7 @@ async function sendToAll() {
 
   const subject = `KPI Report — ${month} ${year}`;
 
-  // ← TO مليان + السبجيكت + Body فاضي
+  // ← TO filled + subject + Body empty
   window.open(`mailto:${encodeURIComponent(allEmails)}?subject=${encodeURIComponent(subject)}`);
   
   showToast('Email opened!', 'success');
