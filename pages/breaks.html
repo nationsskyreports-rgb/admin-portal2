@@ -418,13 +418,16 @@ async function saveAllBreaks() {
     const toSave = workingAgents
       .filter(a => editRows[a.id]?.break1||editRows[a.id]?.lunch||editRows[a.id]?.break2)
       .map(a => ({
-        agent_id:   a.id,
-        break_date: date,
-        shift_time: editRows[a.id]?.shift||null,
-        break1:     editRows[a.id]?.break1 ? editRows[a.id].break1+':00':null,
-        lunch:      editRows[a.id]?.lunch  ? editRows[a.id].lunch+':00' :null,
-        break2:     editRows[a.id]?.break2 ? editRows[a.id].break2+':00':null,
-        updated_at: new Date().toISOString(),
+        agent_id:          a.id,
+        break_date:        date,
+        shift_time:        editRows[a.id]?.shift||null,
+        break1:            editRows[a.id]?.break1 ? editRows[a.id].break1+':00':null,
+        lunch:             editRows[a.id]?.lunch  ? editRows[a.id].lunch+':00' :null,
+        break2:            editRows[a.id]?.break2 ? editRows[a.id].break2+':00':null,
+        scheduled_break1:  editRows[a.id]?.break1 ? editRows[a.id].break1+':00':null,
+        scheduled_lunch:   editRows[a.id]?.lunch  ? editRows[a.id].lunch+':00' :null,
+        scheduled_break2:  editRows[a.id]?.break2 ? editRows[a.id].break2+':00':null,
+        updated_at:        new Date().toISOString(),
       }));
     if (toSave.length) {
       const { error } = await db.from('breaks').upsert(toSave,{onConflict:'agent_id,break_date'});
@@ -662,14 +665,20 @@ function calculateBreaks(schedules,date){
   }
   return agents.map(agent=>{
     const r=result[agent.agent_id]||{};
+    const b1 = r.break1!=null?minsToTime(r.break1):null;
+    const ln = r.lunch !=null?minsToTime(r.lunch) :null;
+    const b2 = r.break2!=null?minsToTime(r.break2):null;
     return{
-      agent_id:  agent.agent_id,
-      break_date:date,
-      shift_time:agent.start_str+' - '+agent.end_str,
-      break1:    r.break1!=null?minsToTime(r.break1):null,
-      lunch:     r.lunch !=null?minsToTime(r.lunch) :null,
-      break2:    r.break2!=null?minsToTime(r.break2):null,
-      updated_at:new Date().toISOString(),
+      agent_id:         agent.agent_id,
+      break_date:       date,
+      shift_time:       agent.start_str+' - '+agent.end_str,
+      break1:           b1,
+      lunch:            ln,
+      break2:           b2,
+      scheduled_break1: b1,
+      scheduled_lunch:  ln,
+      scheduled_break2: b2,
+      updated_at:       new Date().toISOString(),
     };
   });
 }
