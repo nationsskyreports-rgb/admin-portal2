@@ -5,17 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NOS Admin — Dashboard</title>
   
-  <!-- 1. إضافة الأيقونة (مهم جداً) -->
+  <!-- 1. Add favicon -->
   <link rel="icon" href="icon-192.png" type="image/png">
   
-  <!-- ربط ملف الـ CSS الأساسي -->
+  <!-- link main CSS file -->
   <link rel="stylesheet" href="css/main.css">
   
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- ستايل خاص بصفحة اللوجين عشان ملف الـ CSS مالهوش ستايل لوجين -->
+  <!-- login page specific styles -->
   <style>
     #login-view {
       display: flex;
@@ -36,7 +36,7 @@
       width: 100%;
       max-width: 400px;
       padding: 2.5rem;
-      /* استخدام متغيرات الـ CSS الموجودة في main.css */
+      /* use CSS variables from main.css */
       background: var(--surface); 
       border: 1px solid var(--border);
       border-radius: 20px;
@@ -58,10 +58,10 @@
     .login-title { font-size: 24px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
     .login-desc { color: var(--muted); font-size: 13px; margin-bottom: 30px; }
 
-    /* إخفاء الداشبورد افتراضياً */
+    /* hide dashboard by default */
     .admin-layout { display: none; }
     
-    /* كلاس لإظهار الداشبورد */
+    /* class to show dashboard */
     .show-dashboard { display: flex !important; }
     .hide-login { display: none !important; }
   </style>
@@ -69,7 +69,7 @@
 <body>
 
   <!-- ═════════════════════════════════════
-       LOGIN VIEW (مضاف حديثاً)
+       LOGIN VIEW
        ═════════════════════════════════════ -->
   <div id="login-view">
     <div class="login-card">
@@ -102,7 +102,7 @@
   </div>
 
   <!-- ═════════════════════════════════════
-       DASHBOARD VIEW (الكود الأصلي بتاعك)
+       DASHBOARD VIEW
        ═════════════════════════════════════ -->
   <div class="admin-layout" id="dashboard-layout">
 
@@ -266,7 +266,7 @@
 <!-- TOAST -->
 <div id="toast-container"></div>
 
-<!-- ربط ملفات الجافاسكريبت -->
+<!-- link JavaScript files -->
 <script src="js/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui.js"></script>
@@ -277,12 +277,12 @@ function performLogin() {
   const loginView = document.getElementById('login-view');
   const dashboardLayout = document.getElementById('dashboard-layout');
   
-  // محاكاة عمل لوجين
+  // simulate login
   loginView.style.opacity = '0';
   setTimeout(() => {
     loginView.style.display = 'none';
     dashboardLayout.classList.add('show-dashboard');
-    loadAll(); // تحميل الداتا بعد اللوجين
+    loadAll(); // load data after login
   }, 500);
 }
 
@@ -294,7 +294,7 @@ if (session) {
   const name = session.username || 'Admin';
   document.getElementById('admin-name').innerText = name;
   document.getElementById('admin-avatar').innerText = initials(name);
-  // لو فيه Session مسبق، نحط اللوجين ونظهر الداشبورد
+  // if session exists, skip login and show dashboard
   document.getElementById('login-view').style.display = 'none';
   document.getElementById('dashboard-layout').classList.add('show-dashboard');
   loadAll();
@@ -321,7 +321,7 @@ async function loadKPIs() {
     document.getElementById('kpi-agents').innerText     = total;
     document.getElementById('kpi-agents-sub').innerText = `${active} active`;
 
-    // ✅ Active Agents = اللي شيفتهم Work النهارده
+    // ✅ Active Agents = agents with Work shift today
     const { count: workingToday } = await db.from('schedule')
       .select('*', { count: 'exact', head: true })
       .eq('shift_date', today)
@@ -394,7 +394,7 @@ async function loadCallsChart(month) {
     const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,6);
     const labels = sorted.map(e=>e[0]);
     const values = sorted.map(e=>e[1]);
-    // ألوان الشارت (زرق كحلي، أخضر، أزرق، بنفسجي، أحمر، برتقالي)
+    // chart colors
     const colors = ['#3B82F6','#10B981','#60A5FA','#8B5CF6','#EF4444','#F59E0B'];
 
     const ctx = document.getElementById('calls-chart');
