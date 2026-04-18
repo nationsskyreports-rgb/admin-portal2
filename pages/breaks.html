@@ -425,9 +425,9 @@ async function saveAllBreaks() {
         break1:            editRows[a.id]?.break1 ? editRows[a.id].break1+':00':null,
         lunch:             editRows[a.id]?.lunch  ? editRows[a.id].lunch+':00' :null,
         break2:            editRows[a.id]?.break2 ? editRows[a.id].break2+':00':null,
-        scheduled_break1:  editRows[a.id]?.break1 ? editRows[a.id].break1+':00':null,
-        scheduled_lunch:   editRows[a.id]?.lunch  ? editRows[a.id].lunch+':00' :null,
-        scheduled_break2:  editRows[a.id]?.break2 ? editRows[a.id].break2+':00':null,
+        scheduled_break1:  editRows[a.id]?.sched_break1 ? editRows[a.id].sched_break1+':00' : (editRows[a.id]?.break1 ? editRows[a.id].break1+':00':null),
+        scheduled_lunch:   editRows[a.id]?.sched_lunch  ? editRows[a.id].sched_lunch+':00'  : (editRows[a.id]?.lunch  ? editRows[a.id].lunch+':00' :null),
+        scheduled_break2:  editRows[a.id]?.sched_break2 ? editRows[a.id].sched_break2+':00' : (editRows[a.id]?.break2 ? editRows[a.id].break2+':00':null),
         updated_at:        new Date().toISOString(),
       }));
     if (toSave.length) {
@@ -454,6 +454,10 @@ async function copyFromYesterday() {
         editRows[b.agent_id].break1=b.break1?b.break1.substring(0,5):'';
         editRows[b.agent_id].lunch =b.lunch ?b.lunch.substring(0,5) :'';
         editRows[b.agent_id].break2=b.break2?b.break2.substring(0,5):'';
+        // حفظ scheduled columns من أمس لو مش موجودة
+        editRows[b.agent_id].sched_break1 = b.break1 ? b.break1.substring(0,5) : '';
+        editRows[b.agent_id].sched_lunch  = b.lunch  ? b.lunch.substring(0,5)  : '';
+        editRows[b.agent_id].sched_break2 = b.break2 ? b.break2.substring(0,5) : '';
         copied++;
       }
     });
