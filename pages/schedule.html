@@ -35,15 +35,25 @@
   outline:none; cursor:pointer; transition:all 0.2s; text-align:center;
 }
 .shift-select:focus { border-color:var(--gold); background:var(--surface3); }
-.shift-select.is-off              { color:#EF4444; border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.05); }
-.shift-select.is-work             { color:#10B981; border-color:rgba(16,185,129,0.3); background:rgba(16,185,129,0.05); }
-.shift-select.is-annual           { color:#8B5CF6; border-color:rgba(139,92,246,0.3); background:rgba(139,92,246,0.05); }
-.shift-select.is-sick             { color:#EF4444; border-color:rgba(239,68,68,0.3);  background:rgba(239,68,68,0.05); }
-.shift-select.is-casual           { color:#F59E0B; border-color:rgba(245,158,11,0.3); background:rgba(245,158,11,0.05); }
-.shift-select.is-ph               { color:#3B82F6; border-color:rgba(59,130,246,0.3); background:rgba(59,130,246,0.05); }
-.shift-select.is-shift-afternoon  { color:#3B82F6; border-color:rgba(59,130,246,0.3);  background:rgba(59,130,246,0.05); }
-.shift-select.is-shift-evening    { color:#F4D03F; border-color:rgba(244,208,63,0.3); background:rgba(244,208,63,0.05); }
-.shift-select.is-shift-night      { color:#F59E0B; border-color:rgba(245,158,11,0.3); background:rgba(245,158,11,0.05); }
+.shift-select.is-off              { color:#fff; border-color:#EF4444; background:#EF4444; font-weight:700; }
+.shift-select.is-work             { color:#fff; border-color:#10B981; background:#10B981; font-weight:700; }
+.shift-select.is-annual           { color:#fff; border-color:#8B5CF6; background:#8B5CF6; font-weight:700; }
+.shift-select.is-sick             { color:#fff; border-color:#F43F5E; background:#F43F5E; font-weight:700; }
+.shift-select.is-casual           { color:#fff; border-color:#F59E0B; background:#F59E0B; font-weight:700; }
+.shift-select.is-ph               { color:#fff; border-color:#3B82F6; background:#3B82F6; font-weight:700; }
+.shift-select.is-shift-afternoon  { color:#fff; border-color:#0EA5E9; background:#0EA5E9; font-weight:700; }
+.shift-select.is-shift-evening    { color:#000; border-color:#F4D03F; background:#F4D03F; font-weight:700; }
+.shift-select.is-shift-night      { color:#fff; border-color:#6366F1; background:#6366F1; font-weight:700; }
+
+html.light .shift-select.is-off             { color:#fff; }
+html.light .shift-select.is-work            { color:#fff; }
+html.light .shift-select.is-annual          { color:#fff; }
+html.light .shift-select.is-sick            { color:#fff; }
+html.light .shift-select.is-casual         { color:#000; }
+html.light .shift-select.is-ph              { color:#fff; }
+html.light .shift-select.is-shift-afternoon { color:#fff; }
+html.light .shift-select.is-shift-evening   { color:#000; }
+html.light .shift-select.is-shift-night     { color:#fff; }
 .day-header { display:flex; flex-direction:column; align-items:center; gap:2px; }
 .day-name   { font-size:11px; font-weight:700; color:var(--text); }
 .day-date   { font-size:10px; color:var(--muted); }
@@ -104,6 +114,7 @@
         <button class="btn btn-ghost" onclick="openShiftTypesPanel()"><i class="fas fa-sliders-h"></i> Shift Types</button>
         <button class="btn btn-ghost" onclick="openTemplatePanel()"><i class="fas fa-clone"></i> Templates</button>
         <button class="btn btn-primary" onclick="openNewWeekPanel()"><i class="fas fa-plus"></i> New Week</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadAll()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
         <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fas fa-moon"></i></button>
         <div class="admin-chip">
           <div class="admin-avatar" id="admin-avatar">KR</div>
