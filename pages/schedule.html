@@ -665,13 +665,16 @@ function calculateBreaks(schedules, date) {
     const b2 = findSlot(idealBreak2, noBreakStart, noBreakEnd - 15, usedBreak2);
     usedBreak1.add(b1); usedLunch.add(ln); usedBreak2.add(b2);
     upserts.push({
-      agent_id:   agent.agent_id,
-      break_date: date,
-      shift_time: agent.start_time.substring(0,5) + ' - ' + agent.end_time.substring(0,5),
-      break1:     minsToTime(b1),
-      lunch:      minsToTime(ln),
-      break2:     minsToTime(b2),
-      updated_at: new Date().toISOString(),
+      agent_id:         agent.agent_id,
+      break_date:       date,
+      shift_time:       agent.start_time.substring(0,5) + ' - ' + agent.end_time.substring(0,5),
+      break1:           minsToTime(b1),
+      lunch:            minsToTime(ln),
+      break2:           minsToTime(b2),
+      scheduled_break1: minsToTime(b1),
+      scheduled_lunch:  minsToTime(ln),
+      scheduled_break2: minsToTime(b2),
+      updated_at:       new Date().toISOString(),
     });
   });
   return upserts;
