@@ -340,10 +340,11 @@ function copyKPIReport() {
     const calls       = cells[4]?.innerText?.trim() || '—';
     const netMissing  = cells[5]?.innerText?.trim() || '—';
     const excuses     = cells[6]?.innerText?.trim() || '—';
-    const quality     = cells[7]?.querySelector('input')?.value || '—';
-    const remaining   = cells[8]?.innerText?.trim() || '—';
-    const usedMTD     = cells[9]?.innerText?.trim() || '—';
-    const usedYTD     = cells[10]?.innerText?.trim() || '—';
+    const adherence   = cells[7]?.innerText?.trim() || '—';
+    const quality     = cells[8]?.querySelector('input')?.value || '—';
+    const remaining   = cells[9]?.innerText?.trim() || '—';
+    const usedMTD     = cells[10]?.innerText?.trim() || '—';
+    const usedYTD     = cells[11]?.innerText?.trim() || '—';
     const confNum     = parseFloat(conformance) || 0;
     const confColor   = confNum >= 98 ? '#d4edda' : confNum >= 90 ? '#fff3cd' : '#f8d7da';
     const missColor   = missing === 'Full Time' ? '#d4edda' : '#f8d7da';
@@ -770,7 +771,7 @@ function buildReportData() {
       missing:     cells[2]?.innerText?.trim() || '—',
       aht:         cells[3]?.innerText?.trim() || '—',
       calls:       cells[4]?.innerText?.trim() || '—',
-      quality:     cells[7]?.querySelector('input')?.value || '—',
+      quality:     cells[8]?.querySelector('input')?.value || '—',
     };
   });
 }
