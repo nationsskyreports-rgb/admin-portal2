@@ -560,7 +560,9 @@ function onShiftChange(sel) {
 
 async function saveSchedule() {
   const btn = document.getElementById('save-btn');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  
   try {
     const upserts = [];
     Object.keys(scheduleData).forEach(key => {
@@ -568,19 +570,31 @@ async function saveSchedule() {
       const agentId = key.substring(0, lastUnderscore);
       const date = key.substring(lastUnderscore + 1);
       const entry = scheduleData[key];
-      upserts.push({ agent_id: agentId, week_id: currentWeek.id, shift_date: date, day_type: entry.day_type, shift_type_id: entry.shift_type_id || null, status: 'Approved' });
+      upserts.push({ 
+        agent_id: agentId, 
+        week_id: currentWeek.id, 
+        shift_date: date, 
+        day_type: entry.day_type, 
+        shift_type_id: entry.shift_type_id || null, 
+        status: 'Approved' 
+      });
     });
+    
     if (upserts.length) {
       const { error } = await db.from('schedule').upsert(upserts, { onConflict: 'agent_id,shift_date' });
       if (error) throw error;
     }
+    await autoGenerateBreaks();
     unsaved = false;
-    showToast('Schedule saved!', 'success');
+    showToast('Schedule & Breaks saved!', 'success'); // رسالة تم تعديلها
     btn.innerHTML = '<i class="fas fa-save"></i> Save';
-  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
-  finally { btn.disabled = false; }
+  } catch(e) { 
+    showToast('Save failed: ' + e.message, 'error'); 
+  } finally { 
+    btn.disabled = false; 
+  }
 }
-
+  
 async function publishWeek() {
   const unpublished = allWeeks.filter(w => w.id !== currentWeek.id && w.status !== 'Published' && new Date(w.week_start) < new Date(currentWeek.week_start));
   const warningMsg = unpublished.length > 0
