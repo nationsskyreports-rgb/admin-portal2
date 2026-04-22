@@ -258,8 +258,13 @@ function getShiftEmoji(startTime) {
 }
 
 async function loadAll() {
-  await Promise.all([loadAgents(), loadShiftTypes(), loadWeeks()]);
-}
+  await Promise.all([loadAgents(), loadShiftTypes(), loadWeeks()]);  
+  const today = new Date();
+  document.getElementById('filter-year').value = today.getFullYear();
+  const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+  document.getElementById('filter-month').value = currentMonth;
+  filterWeekTabs();
+  }
 
 async function loadAgents() {
   const { data } = await db.from('agents').select('id,formal_name,xcally_id').eq('status','Active').order('formal_name');
