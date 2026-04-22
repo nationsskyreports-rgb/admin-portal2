@@ -37,6 +37,71 @@
   font-size:11px; font-weight:800; font-family:'IBM Plex Mono',monospace;
   background:rgba(16,185,129,0.12); color:#10B981; border:1px solid rgba(16,185,129,0.2);
 }
+
+/* ── TABS ── */
+.tabs-bar {
+  display:flex; gap:4px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:12px; padding:4px;
+  margin-bottom:20px;
+}
+.tab-btn {
+  flex:1; padding:9px 18px; border-radius:9px;
+  background:transparent; border:none; cursor:pointer;
+  font-size:13px; font-weight:600; color:var(--muted);
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  transition:all .2s;
+}
+.tab-btn:hover { color:var(--text); background:rgba(255,255,255,0.05); }
+.tab-btn.active {
+  background:var(--gold);
+  color:#000;
+  box-shadow:0 2px 12px rgba(212,175,55,0.3);
+}
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* ── MANUAL WAIVE FORM ── */
+.manual-waive-card {
+  background:rgba(16,185,129,0.04);
+  border:1px solid rgba(16,185,129,0.18);
+  border-radius:16px;
+  padding:28px;
+  max-width:680px;
+  margin:0 auto;
+}
+.manual-waive-card .form-label {
+  font-size:12px; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; display:block;
+}
+.manual-waive-card .form-input {
+  width:100%; padding:10px 14px; border-radius:10px;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  color:var(--text); font-size:13px; outline:none; transition:border .2s;
+}
+.manual-waive-card .form-input:focus { border-color:var(--gold); }
+.dur-row {
+  display:grid; grid-template-columns:1fr 1fr; gap:14px;
+}
+.submit-row {
+  display:flex; justify-content:flex-end; margin-top:22px;
+}
+.btn-waive {
+  padding:11px 32px; border-radius:10px; border:none; cursor:pointer;
+  background:var(--gold); color:#000; font-size:13px; font-weight:700;
+  display:flex; align-items:center; gap:8px; transition:opacity .2s;
+}
+.btn-waive:hover { opacity:.85; }
+.btn-waive:disabled { opacity:.5; cursor:not-allowed; }
+
+.preview-pill {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 12px; border-radius:20px;
+  background:rgba(212,175,55,0.12); color:var(--gold);
+  border:1px solid rgba(212,175,55,0.25);
+  font-size:12px; font-weight:700; font-family:'IBM Plex Mono',monospace;
+}
 </style>
 </head>
 <body>
@@ -70,133 +135,222 @@
 
     <div class="page-content">
 
-      <!-- ── INFO BANNER ── -->
-      <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:14px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px;" class="fade-up">
-        <i class="fas fa-hand-holding-heart" style="color:#10B981;font-size:20px;flex-shrink:0;"></i>
-        <div style="font-size:13px;color:var(--muted);">
-          This page lists all <strong style="color:var(--text);">waived deviations</strong> — situations where time issues were forgiven.
-          You can <strong style="color:var(--text);">unwaive</strong> a record to move it back to the active deviations log.
-        </div>
+      <!-- ── TABS ── -->
+      <div class="tabs-bar fade-up">
+        <button class="tab-btn active" id="tab-history-btn" onclick="switchTab('history')">
+          <i class="fas fa-history"></i> Waive History
+        </button>
+        <button class="tab-btn" id="tab-manual-btn" onclick="switchTab('manual')">
+          <i class="fas fa-hand-holding-heart"></i> Manual Waive
+        </button>
       </div>
 
-      <!-- ── FILTERS ── -->
-      <div class="section-card fade-up" style="margin-bottom:14px;">
-        <div class="section-header">
-          <div class="section-title">
-            <i class="fas fa-filter" style="color:var(--gold)"></i> Filters
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="resetFilters()">
-            <i class="fas fa-undo"></i> Reset
-          </button>
-        </div>
-        <div class="section-body">
-          <div class="form-grid form-grid-3">
-            <div class="form-group">
-              <label class="form-label">Date Range</label>
-              <select id="filter-range" class="form-input" onchange="onRangeChange()">
-                <option value="mtd" selected>Month to Date</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="last7">Last 7 Days</option>
-                <option value="last30">Last 30 Days</option>
-                <option value="all">All Time</option>
-                <option value="custom">Custom Range</option>
-              </select>
-            </div>
-            <div class="form-group" id="custom-from-wrap" style="display:none;">
-              <label class="form-label">From</label>
-              <input type="date" id="filter-from" class="form-input" onchange="loadData()">
-            </div>
-            <div class="form-group" id="custom-to-wrap" style="display:none;">
-              <label class="form-label">To</label>
-              <input type="date" id="filter-to" class="form-input" onchange="loadData()">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Agent</label>
-              <select id="filter-agent" class="form-input" onchange="loadData()">
-                <option value="">All Agents</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Deviation Type</label>
-              <select id="filter-type" class="form-input" onchange="loadData()">
-                <option value="">All Types</option>
-                <option value="Late Login">Late Login</option>
-                <option value="Early Logout">Early Logout</option>
-                <option value="Long Break">Long Break</option>
-                <option value="Missed Shift">Missed Shift</option>
-                <option value="Extra Break">Extra Break</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Waived By</label>
-              <select id="filter-waiver" class="form-input" onchange="loadData()">
-                <option value="">All Admins</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- ══════════════════ TAB: HISTORY ══════════════════ -->
+      <div class="tab-panel active" id="tab-history">
 
-      <!-- ── KPI CARDS ── -->
-      <div class="kpi-grid fade-up" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
-        <div class="kpi-card green">
-          <span class="kpi-icon">✅</span>
-          <div class="kpi-label">Total Waived</div>
-          <div class="kpi-value" id="kpi-total">—</div>
-          <div class="kpi-sub">In selected range</div>
+        <!-- ── INFO BANNER ── -->
+        <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:14px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px;" class="fade-up">
+          <i class="fas fa-hand-holding-heart" style="color:#10B981;font-size:20px;flex-shrink:0;"></i>
+          <div style="font-size:13px;color:var(--muted);">
+            This page lists all <strong style="color:var(--text);">waived deviations</strong> — situations where time issues were forgiven.
+            You can <strong style="color:var(--text);">unwaive</strong> a record to move it back to the active deviations log.
+          </div>
         </div>
-        <div class="kpi-card blue">
-          <span class="kpi-icon">⏱️</span>
-          <div class="kpi-label">Time Forgiven</div>
-          <div class="kpi-value" id="kpi-mins">—</div>
-          <div class="kpi-sub">Total minutes</div>
-        </div>
-        <div class="kpi-card purple">
-          <span class="kpi-icon">👥</span>
-          <div class="kpi-label">Agents Helped</div>
-          <div class="kpi-value" id="kpi-agents">—</div>
-          <div class="kpi-sub">Unique agents</div>
-        </div>
-        <div class="kpi-card gold">
-          <span class="kpi-icon">🏅</span>
-          <div class="kpi-label">Top Recipient</div>
-          <div class="kpi-value" id="kpi-top" style="font-size:15px;">—</div>
-          <div class="kpi-sub" id="kpi-top-sub"></div>
-        </div>
-      </div>
 
-      <!-- ── WAIVED TABLE ── -->
-      <div class="section-card fade-up">
-        <div class="section-header">
-          <div class="section-title">
-            <i class="fas fa-history" style="color:var(--gold)"></i>
-            Waive History
+        <!-- ── FILTERS ── -->
+        <div class="section-card fade-up" style="margin-bottom:14px;">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-filter" style="color:var(--gold)"></i> Filters
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="resetFilters()">
+              <i class="fas fa-undo"></i> Reset
+            </button>
           </div>
-          <span id="row-count" style="font-size:11px;color:var(--muted);"></span>
-        </div>
-        <div class="section-body no-pad">
-          <div class="table-wrap">
-            <table class="nos-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Agent</th>
-                  <th>Type</th>
-                  <th>Saved Time</th>
-                  <th>Reason</th>
-                  <th>Waived By</th>
-                  <th>Waived At</th>
-                  <th style="text-align:center;">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="waive-tbody">
-                <tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
-              </tbody>
-            </table>
+          <div class="section-body">
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label class="form-label">Date Range</label>
+                <select id="filter-range" class="form-input" onchange="onRangeChange()">
+                  <option value="mtd" selected>Month to Date</option>
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="last7">Last 7 Days</option>
+                  <option value="last30">Last 30 Days</option>
+                  <option value="all">All Time</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+              </div>
+              <div class="form-group" id="custom-from-wrap" style="display:none;">
+                <label class="form-label">From</label>
+                <input type="date" id="filter-from" class="form-input" onchange="loadData()">
+              </div>
+              <div class="form-group" id="custom-to-wrap" style="display:none;">
+                <label class="form-label">To</label>
+                <input type="date" id="filter-to" class="form-input" onchange="loadData()">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Agent</label>
+                <select id="filter-agent" class="form-input" onchange="loadData()">
+                  <option value="">All Agents</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Deviation Type</label>
+                <select id="filter-type" class="form-input" onchange="loadData()">
+                  <option value="">All Types</option>
+                  <option value="Late Login">Late Login</option>
+                  <option value="Early Logout">Early Logout</option>
+                  <option value="Long Break">Long Break</option>
+                  <option value="Missed Shift">Missed Shift</option>
+                  <option value="Extra Break">Extra Break</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Waived By</label>
+                <select id="filter-waiver" class="form-input" onchange="loadData()">
+                  <option value="">All Admins</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+
+        <!-- ── KPI CARDS ── -->
+        <div class="kpi-grid fade-up" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+          <div class="kpi-card green">
+            <span class="kpi-icon">✅</span>
+            <div class="kpi-label">Total Waived</div>
+            <div class="kpi-value" id="kpi-total">—</div>
+            <div class="kpi-sub">In selected range</div>
+          </div>
+          <div class="kpi-card blue">
+            <span class="kpi-icon">⏱️</span>
+            <div class="kpi-label">Time Forgiven</div>
+            <div class="kpi-value" id="kpi-mins">—</div>
+            <div class="kpi-sub">Total minutes</div>
+          </div>
+          <div class="kpi-card purple">
+            <span class="kpi-icon">👥</span>
+            <div class="kpi-label">Agents Helped</div>
+            <div class="kpi-value" id="kpi-agents">—</div>
+            <div class="kpi-sub">Unique agents</div>
+          </div>
+          <div class="kpi-card gold">
+            <span class="kpi-icon">🏅</span>
+            <div class="kpi-label">Top Recipient</div>
+            <div class="kpi-value" id="kpi-top" style="font-size:15px;">—</div>
+            <div class="kpi-sub" id="kpi-top-sub"></div>
+          </div>
+        </div>
+
+        <!-- ── WAIVED TABLE ── -->
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-history" style="color:var(--gold)"></i>
+              Waive History
+            </div>
+            <span id="row-count" style="font-size:11px;color:var(--muted);"></span>
+          </div>
+          <div class="section-body no-pad">
+            <div class="table-wrap">
+              <table class="nos-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Agent</th>
+                    <th>Type</th>
+                    <th>Saved Time</th>
+                    <th>Reason</th>
+                    <th>Waived By</th>
+                    <th>Waived At</th>
+                    <th style="text-align:center;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="waive-tbody">
+                  <tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /tab-history -->
+
+      <!-- ══════════════════ TAB: MANUAL WAIVE ══════════════════ -->
+      <div class="tab-panel" id="tab-manual">
+
+        <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);border-radius:14px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:center;gap:12px;" class="fade-up">
+          <i class="fas fa-pen-to-square" style="color:var(--gold);font-size:20px;flex-shrink:0;"></i>
+          <div style="font-size:13px;color:var(--muted);">
+            Use this form to <strong style="color:var(--text);">manually waive</strong> time for any agent on any date — without needing an existing deviation record. A new waived entry will be created directly.
+          </div>
+        </div>
+
+        <div class="manual-waive-card fade-up">
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+            <i class="fas fa-hand-holding-heart" style="color:#10B981;"></i>
+            New Manual Waive
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+            <div>
+              <label class="form-label">Agent <span style="color:#EF4444;">*</span></label>
+              <select id="mw-agent" class="form-input" onchange="updatePreview()">
+                <option value="">— Select Agent —</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Date <span style="color:#EF4444;">*</span></label>
+              <input type="date" id="mw-date" class="form-input" onchange="updatePreview()">
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label class="form-label">Deviation Type <span style="color:#EF4444;">*</span></label>
+            <select id="mw-type" class="form-input" onchange="updatePreview()">
+              <option value="">— Select Type —</option>
+              <option value="Late Login">⏰ Late Login</option>
+              <option value="Early Logout">🚪 Early Logout</option>
+              <option value="Long Break">☕ Long Break</option>
+              <option value="Missed Shift">❌ Missed Shift</option>
+              <option value="Extra Break">➕ Extra Break</option>
+            </select>
+          </div>
+
+          <div class="dur-row" style="margin-bottom:16px;">
+            <div>
+              <label class="form-label">Hours</label>
+              <input type="number" id="mw-hours" class="form-input" min="0" max="23" placeholder="0"
+                     oninput="updatePreview()">
+            </div>
+            <div>
+              <label class="form-label">Minutes <span style="color:#EF4444;">*</span></label>
+              <input type="number" id="mw-minutes" class="form-input" min="0" max="59" placeholder="e.g. 15"
+                     oninput="updatePreview()">
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label class="form-label">Reason / Note</label>
+            <textarea id="mw-reason" class="form-input" rows="3"
+              style="resize:vertical;font-family:inherit;"
+              placeholder="e.g. Approved by team lead, internet outage, doctor visit…"></textarea>
+          </div>
+
+          <!-- Preview -->
+          <div id="mw-preview" style="display:none;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 16px;margin-bottom:4px;font-size:12px;color:var(--muted);line-height:1.8;">
+          </div>
+
+          <div class="submit-row">
+            <button class="btn-waive" id="mw-submit-btn" onclick="submitManualWaive()" disabled>
+              <i class="fas fa-check-circle"></i> Save Waive
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /tab-manual -->
 
     </div>
   </div>
@@ -234,6 +388,14 @@ if (session) {
 let allAgents = [];
 let currentData = [];
 
+// ── TAB SWITCH ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('tab-' + name + '-btn').classList.add('active');
+}
+
 // ── INIT ──
 async function init() {
   const [agentsRes, waiversRes] = await Promise.all([
@@ -242,9 +404,16 @@ async function init() {
   ]);
   allAgents = agentsRes.data || [];
 
-  // Populate agents
+  // Populate agents — history filter
   const agentSel = document.getElementById('filter-agent');
   allAgents.forEach(a => agentSel.add(new Option(a.formal_name, a.id)));
+
+  // Populate agents — manual waive
+  const mwAgent = document.getElementById('mw-agent');
+  allAgents.forEach(a => mwAgent.add(new Option(a.formal_name, a.id)));
+
+  // Default date for manual waive = today
+  document.getElementById('mw-date').value = getToday();
 
   // Populate waivers (unique)
   const waivers = [...new Set((waiversRes.data || []).map(r => r.waived_by).filter(Boolean))];
@@ -413,7 +582,6 @@ function renderKPIs(data) {
   const total    = data.length;
   const totalMin = data.reduce((s,r) => s + (r.deviation_minutes||0), 0);
 
-  // Unique agents
   const agentMap = {};
   data.forEach(r => {
     if (!agentMap[r.agent_name]) agentMap[r.agent_name] = 0;
@@ -450,6 +618,106 @@ function confirmUnwaive(id) {
       } catch(e) { showToast('Failed: '+e.message, 'error'); }
     }
   );
+}
+
+// ══════════════════════════════════════════
+// ── MANUAL WAIVE LOGIC ──
+// ══════════════════════════════════════════
+
+function getTotalMinutes() {
+  const h = parseInt(document.getElementById('mw-hours').value)   || 0;
+  const m = parseInt(document.getElementById('mw-minutes').value) || 0;
+  return h * 60 + m;
+}
+
+function updatePreview() {
+  const agentSel = document.getElementById('mw-agent');
+  const agentName = agentSel.options[agentSel.selectedIndex]?.text || '';
+  const agentId  = agentSel.value;
+  const date     = document.getElementById('mw-date').value;
+  const type     = document.getElementById('mw-type').value;
+  const totalMin = getTotalMinutes();
+  const reason   = document.getElementById('mw-reason').value.trim();
+
+  const valid = agentId && date && type && totalMin > 0;
+  document.getElementById('mw-submit-btn').disabled = !valid;
+
+  const preview = document.getElementById('mw-preview');
+  if (!valid) { preview.style.display = 'none'; return; }
+
+  const hrs = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  const durStr = hrs > 0 ? `${hrs}h ${min}min` : `${min} min`;
+
+  preview.style.display = 'block';
+  preview.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+      <span style="color:var(--text);font-weight:700;">${agentName}</span>
+      <span style="color:var(--muted);">•</span>
+      <span style="color:var(--gold);font-weight:700;">${formatDateShort(date)}</span>
+      <span style="color:var(--muted);">•</span>
+      <span class="${typeClass(type)}">${typeIcon(type)} ${type}</span>
+      <span style="color:var(--muted);">•</span>
+      <span class="preview-pill">+${totalMin} min${hrs > 0 ? ' ('+durStr+')' : ''}</span>
+      ${reason ? `<span style="color:var(--muted);">•</span><span style="font-style:italic;font-size:12px;">"${reason}"</span>` : ''}
+    </div>
+  `;
+}
+
+async function submitManualWaive() {
+  const agentSel  = document.getElementById('mw-agent');
+  const agentId   = agentSel.value;
+  const agentName = agentSel.options[agentSel.selectedIndex]?.text || '';
+  const date      = document.getElementById('mw-date').value;
+  const type      = document.getElementById('mw-type').value;
+  const totalMin  = getTotalMinutes();
+  const reason    = document.getElementById('mw-reason').value.trim();
+
+  if (!agentId || !date || !type || totalMin <= 0) {
+    showToast('Please fill all required fields and enter a duration', 'error');
+    return;
+  }
+
+  const adminName = session?.username || 'Admin';
+
+  const btn = document.getElementById('mw-submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+  try {
+    const { error } = await db.from('adherence_deviations').insert({
+      agent_id:          agentId,
+      agent_name:        agentName,
+      deviation_date:    date,
+      deviation_type:    type,
+      deviation_minutes: totalMin,
+      is_waived:         true,
+      waived_by:         adminName,
+      waived_at:         new Date().toISOString(),
+      waive_reason:      reason || null,
+    });
+    if (error) throw error;
+
+    showToast(`✅ Waive saved for ${agentName} (${totalMin} min)`, 'success');
+
+    // Reset form
+    document.getElementById('mw-agent').value   = '';
+    document.getElementById('mw-date').value    = getToday();
+    document.getElementById('mw-type').value    = '';
+    document.getElementById('mw-hours').value   = '';
+    document.getElementById('mw-minutes').value = '';
+    document.getElementById('mw-reason').value  = '';
+    document.getElementById('mw-preview').style.display = 'none';
+
+    // Refresh history in background
+    await loadData();
+
+  } catch(e) {
+    showToast('Failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check-circle"></i> Save Waive';
+  }
 }
 
 // ── HELPERS ──
