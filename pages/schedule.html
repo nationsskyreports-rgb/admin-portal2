@@ -237,6 +237,7 @@ let currentWeek   = null;
 let scheduleData  = {};
 let unsaved       = false;
 let draftRequests = {};
+let changedDates  = new Set();
 
 const TODAY = getToday();
 
@@ -555,14 +556,15 @@ function onShiftChange(sel) {
   scheduleData[key] = { ...scheduleData[key], day_type: dayType, shift_type_id: shiftTypeId };
   sel.className = `shift-select ${getSelectClass(dayType, shiftTypeId)}`;
   unsaved = true;
+  changedDates.add(date); 
+  // -----------------------------------------------
+
   document.getElementById('save-btn').innerHTML = '<i class="fas fa-save"></i> Save <span style="color:var(--warning);font-size:10px;">●</span>';
 }
-
+  
 async function saveSchedule() {
   const btn = document.getElementById('save-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-  
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
   try {
     const upserts = [];
     Object.keys(scheduleData).forEach(key => {
@@ -570,29 +572,20 @@ async function saveSchedule() {
       const agentId = key.substring(0, lastUnderscore);
       const date = key.substring(lastUnderscore + 1);
       const entry = scheduleData[key];
-      upserts.push({ 
-        agent_id: agentId, 
-        week_id: currentWeek.id, 
-        shift_date: date, 
-        day_type: entry.day_type, 
-        shift_type_id: entry.shift_type_id || null, 
-        status: 'Approved' 
-      });
+      upserts.push({ agent_id: agentId, week_id: currentWeek.id, shift_date: date, day_type: entry.day_type, shift_type_id: entry.shift_type_id || null, status: 'Approved' });
     });
-    
     if (upserts.length) {
       const { error } = await db.from('schedule').upsert(upserts, { onConflict: 'agent_id,shift_date' });
       if (error) throw error;
     }
-    await autoGenerateBreaks();
+    await autoGenerateBreaks(changedDates);
+    changedDates.clear(); 
+
     unsaved = false;
-    showToast('Schedule & Breaks saved!', 'success'); // رسالة تم تعديلها
+    showToast('Schedule & Breaks saved!', 'success');
     btn.innerHTML = '<i class="fas fa-save"></i> Save';
-  } catch(e) { 
-    showToast('Save failed: ' + e.message, 'error'); 
-  } finally { 
-    btn.disabled = false; 
-  }
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+  finally { btn.disabled = false; }
 }
   
 async function publishWeek() {
@@ -648,8 +641,15 @@ async function updateAnnualLeave() {
   showToast('Leave balance updated!', 'success');
 }
 
-async function autoGenerateBreaks() {
-  const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
+async function autoGenerateBreaks(datesToUpdate = null) {
+  let dates;
+  
+  if (datesToUpdate && datesToUpdate.size > 0) {
+    dates = Array.from(datesToUpdate).map(iso => ({ iso: iso }));
+  } else {
+    dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
+  }
+
   for (const d of dates) {
     const schedules = [];
     allAgents.forEach(agent => {
@@ -660,6 +660,7 @@ async function autoGenerateBreaks() {
       if (!shiftType) return;
       schedules.push({ agent_id: agent.id, shift_types: { start_time: shiftType.start_time, end_time: shiftType.end_time } });
     });
+    
     if (!schedules.length) continue;
     const upserts = calculateBreaks(schedules, d.iso);
     if (upserts.length) {
@@ -668,7 +669,7 @@ async function autoGenerateBreaks() {
     }
   }
 }
-
+  
 function calculateBreaks(schedules, date) {
   const agents = schedules.filter(s => s.shift_types).map(s => ({
     agent_id:   s.agent_id,
