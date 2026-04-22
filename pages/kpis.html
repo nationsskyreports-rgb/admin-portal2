@@ -74,8 +74,7 @@
           <option value="03">March</option><option value="04">April</option>
           <option value="05">May</option><option value="06">June</option>
           <option value="07">July</option><option value="08">August</option>
-          <option value="09">September</option><option value="10">October</option>
-          <option value="11">November</option><option value="12">December</option>
+          <option value="09">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
         </select>
         <select id="year-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
           <option value="2026">2026</option><option value="2025">2025</option>
@@ -121,11 +120,8 @@
                   <tr>
                     <th>Conformance</th><th>Missing Time</th><th>AHT</th>
                     <th>Calls</th><th>Net Missing</th><th>Excuses</th>
-                    <th>Deviations</th>
-                    <th>Score</th>
-                    <th class="th-annual">Remaining</th>
-                    <th class="th-annual">Used MTD</th>
-                    <th class="th-annual">Used YTD</th>
+                    <th>Deviations</th><th>Score</th>
+                    <th class="th-annual">Remaining</th><th class="th-annual">Used MTD</th><th class="th-annual">Used YTD</th>
                   </tr>
                 </thead>
                 <tbody id="kpi-tbody">
@@ -440,12 +436,14 @@ async function loadKPIs(monthName, year) {
     const lastDay  = new Date(year, parseInt(month), 0).getDate();
     const dateTo   = year+'-'+month+'-'+String(lastDay).padStart(2,'0');
 
+    // UPDATED QUERY: Added deviation_minutes
     const [perfRes, excusesRes, annualRes, qualityRes, adherenceRes] = await Promise.all([
       db.from('daily_performance').select('agent_id,agent_name,conformance,missing_sec,active_sec,target_sec,avg_aht,calls').gte('perf_date',dateFrom).lte('perf_date',dateTo),
       db.from('excuses').select('*').eq('status','Approved').gte('excuse_date',dateFrom).lte('excuse_date',dateTo),
       db.from('annual_leave').select('*').eq('year',year),
       db.from('quality_scores').select('*').eq('month',monthName).eq('year',year),
-      db.from('adherence_deviations').select('agent_id,is_waived').gte('deviation_date',dateFrom).lte('deviation_date',dateTo),
+      // CHANGED: fetching deviation_minutes here
+      db.from('adherence_deviations').select('agent_id,is_waived,deviation_minutes').gte('deviation_date',dateFrom).lte('deviation_date',dateTo),
     ]);
 
     const perfData      = perfRes.data      || [];
@@ -463,13 +461,27 @@ async function loadKPIs(monthName, year) {
         const avgConf = agentPerf.reduce((s,p)=>s+parseFloat(p.conformance||0),0)/agentPerf.length;
         conformance   = avgConf.toFixed(1)+'%';
 
-        // ── calculate the Net Missing correct ──
-        // Total Missing from the daily_performance (after the excuse)
+        // 1. Total Missing (Seconds)
         const totalMissingSec = agentPerf.reduce((s,p)=>s+(p.missing_sec||0),0);
-        // Total Extra = days worked more than target
+        // 2. Total Extra (Seconds)
         const totalExtraSec   = agentPerf.reduce((s,p)=>s+Math.max(0,(p.active_sec||0)-(p.target_sec||0)),0);
-        // Net Missing = Missing - Extra
-        const netMissingSec   = Math.max(0, totalMissingSec - totalExtraSec);
+
+        // 3. CALCULATE WAIVED SECONDS
+        const agentDeviations = adherenceData.filter(d => d.agent_id === agent.id);
+        let waivedMinutes = 0;
+        agentDeviations.forEach(d => {
+          if(d.is_waived) {
+            // Summing minutes from deviations marked as waived
+            waivedMinutes += (d.deviation_minutes || 0);
+          }
+        });
+        // Convert minutes to seconds for the final calculation
+        const waivedSeconds = waivedMinutes * 60;
+
+        // 4. NET MISSING CALCULATION (UPDATED)
+        // Net = (Missing - Extra) - Waived
+        let netMissingSec = Math.max(0, (totalMissingSec - totalExtraSec) - waivedSeconds);
+
         missingTime = netMissingSec <= 300 ? 'Full Time' : secToTime(netMissingSec);
 
         const ahtArr = agentPerf.filter(p=>p.avg_aht>0);
@@ -483,6 +495,7 @@ async function loadKPIs(monthName, year) {
       const excStr       = excHours > 0 ? excHours+' Hours' : 'None';
 
       // Net Missing = missingTime directly (excuse deducted in xCALLY)
+      // NOTE: Now Net Missing reflects the Waived Deviations because missingTime does.
       const netMissing = missingTime;
 
       const ann        = annData.find(a=>a.agent_id===agent.id)||{};
@@ -810,7 +823,7 @@ async function sendToAll() {
   window.open(mailtoUrl);
   showToast('Email opened!', 'success');
 }
-  
+
 function secToTime(s) {
   if (!s && s!==0) return '—';
   return Math.floor(s/3600).toString().padStart(2,'0')+':'+Math.floor((s%3600)/60).toString().padStart(2,'0')+':'+Math.floor(s%60).toString().padStart(2,'0');
