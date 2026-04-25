@@ -424,3 +424,12 @@ function formatDateShort(d) {
 }
 
 init();
+
+function refreshCurrentTab() {
+  const isMonthly = document.getElementById("tab-monthly")?.style.display !== "none";
+  if (isMonthly) {
+    loadMonthlyAdherence();
+  } else {
+    loadData();
+  }
+}
