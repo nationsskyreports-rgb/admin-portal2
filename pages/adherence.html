@@ -998,54 +998,64 @@ async function loadBreakChanges() {
   wrap.innerHTML    = '<div class="loading-wrap"><div class="spinner"></div></div>';
   kpiWrap.innerHTML = '';
 
+  const THRESHOLD = getTolerance().brk;
+
   try {
-    let q = db.from('breaks')
-      .select('agent_id, break_date, shift_time, break1, lunch, break2, scheduled_break1, scheduled_lunch, scheduled_break2, agents(formal_name)')
+    // 1. Reference — last committed time per agent (breaks table)
+    let brkQ = db.from('breaks')
+      .select('agent_id, break_date, shift_time, break1, lunch, break2, agents(formal_name)')
       .gte('break_date', from)
       .lte('break_date', to)
-      .not('scheduled_break1', 'is', null)
       .order('break_date', { ascending: false });
+    if (agentF) brkQ = brkQ.eq('agent_id', agentF);
+    const { data: brkData, error: brkErr } = await brkQ;
+    if (brkErr) throw brkErr;
 
-    if (agentF) q = q.eq('agent_id', agentF);
+    // 2. Actual — from xCALLY via daily_performance
+    let perfQ = db.from('daily_performance')
+      .select('agent_id, perf_date, actual_break1, actual_lunch, actual_break2')
+      .gte('perf_date', from)
+      .lte('perf_date', to);
+    if (agentF) perfQ = perfQ.eq('agent_id', agentF);
+    const { data: perfData, error: perfErr } = await perfQ;
+    if (perfErr) throw perfErr;
 
-    const { data, error } = await q;
-    if (error) throw error;
+    const perfMap = {};
+    (perfData || []).forEach(p => { perfMap[p.agent_id + '_' + p.perf_date] = p; });
 
-    // Calculate differences
-    function timeDiffMins(scheduled, actual) {
-      if (!scheduled || !actual) return 0;
-      const [sh, sm] = scheduled.substring(0,5).split(':').map(Number);
+    function timeDiffMins(ref, actual) {
+      if (!ref || !actual) return null;
+      const [rh, rm] = ref.substring(0,5).split(':').map(Number);
       const [ah, am] = actual.substring(0,5).split(':').map(Number);
-      return (ah * 60 + am) - (sh * 60 + sm);
+      return (ah * 60 + am) - (rh * 60 + rm);
     }
 
-    const THRESHOLD = 15; // minutes
-
     const rows = [];
-    (data || []).forEach(b => {
+    (brkData || []).forEach(b => {
       const name = b.agents?.formal_name || '—';
+      const perf = perfMap[b.agent_id + '_' + b.break_date];
+      if (!perf) return;
       [
-        { type: 'Break 1', sched: b.scheduled_break1, actual: b.break1 },
-        { type: 'Lunch',   sched: b.scheduled_lunch,  actual: b.lunch  },
-        { type: 'Break 2', sched: b.scheduled_break2, actual: b.break2 },
+        { type: 'Break 1', ref: b.break1, actual: perf.actual_break1 },
+        { type: 'Lunch',   ref: b.lunch,  actual: perf.actual_lunch  },
+        { type: 'Break 2', ref: b.break2, actual: perf.actual_break2 },
       ].forEach(br => {
-        const diff = timeDiffMins(br.sched, br.actual);
-        if (Math.abs(diff) > 0) {
-          rows.push({
-            agent:   name,
-            date:    b.break_date,
-            shift:   b.shift_time || '—',
-            type:    br.type,
-            sched:   br.sched ? br.sched.substring(0,5) : '—',
-            actual:  br.actual ? br.actual.substring(0,5) : '—',
-            diff,
-            flag:    Math.abs(diff) >= THRESHOLD,
-          });
-        }
+        const diff = timeDiffMins(br.ref, br.actual);
+        if (diff === null) return;
+        rows.push({
+          agentId: b.agent_id,
+          agent:   name,
+          date:    b.break_date,
+          shift:   b.shift_time || '—',
+          type:    br.type,
+          ref:     br.ref    ? br.ref.substring(0,5)    : '—',
+          actual:  br.actual ? br.actual.substring(0,5) : '—',
+          diff,
+          flag:    Math.abs(diff) > THRESHOLD,
+        });
       });
     });
 
-    // KPI Cards
     const total   = rows.length;
     const flagged = rows.filter(r => r.flag).length;
     const ok      = total - flagged;
@@ -1053,15 +1063,15 @@ async function loadBreakChanges() {
 
     kpiWrap.innerHTML = `
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Total Changes</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Total Breaks</div>
         <div style="font-size:26px;font-weight:800;color:var(--gold);">${total}</div>
       </div>
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Over limit ${THRESHOLD} min ⚠️</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Late > ±${THRESHOLD}m ⚠️</div>
         <div style="font-size:26px;font-weight:800;color:#ef4444;">${flagged}</div>
       </div>
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">✅ Minor Changes</div>
+        <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:4px;">✅ On Time</div>
         <div style="font-size:26px;font-weight:800;color:#10b981;">${ok}</div>
       </div>
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
@@ -1070,36 +1080,35 @@ async function loadBreakChanges() {
       </div>`;
 
     if (!rows.length) {
-      wrap.innerHTML = '<div class="empty-state" style="padding:32px;"><span class="empty-icon">✅</span>No changes found in this period</div>';
+      wrap.innerHTML = '<div class="empty-state" style="padding:32px;"><span class="empty-icon">✅</span>No xCALLY data found — import a report first</div>';
       return;
     }
 
-    // Table
-    let html = `<table class="data-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+    let html = `<table class="nos-table" style="width:100%;">
       <thead><tr>
         <th>Agent</th><th>Date</th><th>Shift</th><th>Type</th>
-        <th>Scheduled</th><th>Actual</th><th>Diff</th><th>Status</th><th></th>
+        <th>Committed</th><th>Actual (xCALLY)</th><th>Diff</th><th>Status</th><th></th>
       </tr></thead><tbody>`;
 
     rows.forEach(r => {
-      const diffStr = r.diff > 0 ? `+${r.diff} min` : `${r.diff} min`;
-      const diffColor = r.diff > 0 ? '#f59e0b' : '#3b82f6';
-      const status = r.flag
-        ? '<span class="badge badge-danger">⚠️ Over limit</span>'
-        : '<span class="badge badge-success">✅ Minor</span>';
+      const diffStr   = r.diff > 0 ? `+${r.diff}m` : `${r.diff}m`;
+      const diffColor = r.diff > 0 ? '#ef4444' : r.diff < 0 ? '#3b82f6' : '#10b981';
+      const status    = r.flag
+        ? '<span class="badge badge-danger">⚠️ Late</span>'
+        : '<span class="badge badge-success">✅ On Time</span>';
       const addBtn = r.flag
-        ? `<button class="btn btn-warning btn-sm" onclick="addDeviationFromBreak('${r.agent}','${r.date}','${r.type}','${r.sched}','${r.actual}',${r.diff})" title="Add as Deviation">
-             <i class="fas fa-plus"></i> Deviation
-           </button>`
+        ? `<button class="btn btn-ghost btn-sm" onclick="addDeviationFromBreak('${r.agent}','${r.date}','${r.type}','${r.ref}','${r.actual}',${r.diff})"><i class="fas fa-plus"></i> Deviation</button>`
         : '';
       html += `<tr>
-        <td><strong>${r.agent}</strong></td>
-        <td>${r.date}</td>
-        <td style="font-size:12px;color:var(--text-muted);">${r.shift}</td>
+        <td><div style="display:flex;align-items:center;gap:8px;">
+          <div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">${initials(r.agent)}</div>
+          <strong>${r.agent}</strong></div></td>
+        <td style="color:var(--gold);font-weight:700;">${r.date}</td>
+        <td style="font-size:12px;color:var(--muted);">${r.shift}</td>
         <td>${r.type}</td>
-        <td style="font-family:monospace;">${r.sched}</td>
-        <td style="font-family:monospace;">${r.actual}</td>
-        <td style="color:${diffColor};font-weight:700;">${diffStr}</td>
+        <td style="font-family:monospace;">${r.ref}</td>
+        <td style="font-family:monospace;font-weight:700;">${r.actual}</td>
+        <td style="color:${diffColor};font-weight:800;font-family:monospace;">${diffStr}</td>
         <td>${status}</td>
         <td>${addBtn}</td>
       </tr>`;
@@ -1112,6 +1121,8 @@ async function loadBreakChanges() {
     wrap.innerHTML = `<div class="empty-state" style="padding:32px;color:var(--danger);">❌ ${e.message}</div>`;
   }
 }
+
+
 
 async function addDeviationFromBreak(agentName, date, breakType, sched, actual, diffMins) {
   const session = checkAuth();
