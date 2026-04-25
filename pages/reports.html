@@ -81,6 +81,7 @@
         <button class="report-tab" onclick="switchTab('daily',this)">📅 Daily Breakdown</button>
         <button class="report-tab" onclick="switchTab('kpi',this)">📊 Agent KPIs</button>
         <button class="report-tab" onclick="switchTab('requests',this)">📋 Requests</button>
+        <button class="report-tab" onclick="switchTab('adherence',this)">✅ Adherence</button>
         <button class="report-tab" onclick="switchTab('ai',this)">🤖 AI Report</button>
       </div>
 
@@ -224,6 +225,80 @@
         </div>
       </div>
 
+      <!-- TAB: ADHERENCE REPORT -->
+      <div class="report-section" id="section-adherence">
+
+        <!-- Summary KPIs -->
+        <div class="kpi-grid fade-up" id="adh-report-kpis" style="margin-bottom:18px;"></div>
+
+        <!-- Per-Agent Summary Table -->
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-calendar-check" style="color:var(--gold)"></i>
+              Monthly Adherence — <span id="adh-report-label"></span>
+            </div>
+            <span id="adh-report-count" style="font-size:11px;color:var(--muted);"></span>
+          </div>
+          <div class="section-body no-pad">
+            <div class="table-wrap">
+              <table class="nos-table" id="adh-report-table">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Days Worked</th>
+                    <th>Adherent</th>
+                    <th>Non-Adherent</th>
+                    <th>No Data</th>
+                    <th>Late Logins</th>
+                    <th>Late Breaks</th>
+                    <th>Adherence %</th>
+                  </tr>
+                </thead>
+                <tbody id="adh-report-tbody">
+                  <tr><td colspan="8"><div class="empty-state"><span class="empty-icon">📅</span>Select a month and click Load</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily Detail Table -->
+        <div class="section-card fade-up" style="margin-top:18px;">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-list" style="color:var(--gold)"></i>
+              Daily Detail
+            </div>
+          </div>
+          <div class="section-body no-pad">
+            <div class="table-wrap">
+              <table class="nos-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Agent</th>
+                    <th>Login In</th>
+                    <th>Diff</th>
+                    <th>Break 1</th>
+                    <th>Diff</th>
+                    <th>Lunch</th>
+                    <th>Diff</th>
+                    <th>Break 2</th>
+                    <th>Diff</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="adh-detail-tbody">
+                  <tr><td colspan="11"><div class="empty-state" style="padding:20px;"><span class="empty-icon">📅</span>Load to see daily detail</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /section-adherence -->
+
       <!-- TAB: AI REPORT -->
       <div class="report-section" id="section-ai">
         <div class="section-card fade-up">
@@ -309,6 +384,7 @@ async function loadAll() {
     loadCallStats(dateFrom, dateTo, monthName, year),
     loadKPITable(monthName, year),
     loadRequestsData(),
+    loadAdherenceReport(year, parseInt(month), monthName),
   ]);
 }
 
@@ -467,6 +543,178 @@ async function loadKPITable(monthName, year) {
     }).join('');
   } catch(e) {
     tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">❌</span>Failed: '+e.message+'</div></td></tr>';
+  }
+}
+
+
+async function loadAdherenceReport(year, month, monthName) {
+  const tbody     = document.getElementById('adh-report-tbody');
+  const detailTbody = document.getElementById('adh-detail-tbody');
+  const kpiWrap   = document.getElementById('adh-report-kpis');
+  const loading   = '<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
+  tbody.innerHTML = loading;
+  detailTbody.innerHTML = '<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
+  kpiWrap.innerHTML = '';
+  document.getElementById('adh-report-label').innerText = monthName + ' ' + year;
+
+  const TOL_LOGIN = parseInt(localStorage.getItem('nos_tol_login') ?? '3');
+  const TOL_BRK   = parseInt(localStorage.getItem('nos_tol_break') ?? '2');
+
+  const monthStart = year + '-' + String(month).padStart(2,'0') + '-01';
+  const lastDay    = new Date(year, month, 0).getDate();
+  const monthEnd   = year + '-' + String(month).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+
+  function diffMins(ref, actual) {
+    if (!ref || !actual) return null;
+    const [rh, rm] = ref.substring(0,5).split(':').map(Number);
+    const [ah, am] = actual.substring(0,5).split(':').map(Number);
+    return (ah*60+am) - (rh*60+rm);
+  }
+  function checkT(ref, actual, tol) {
+    const d = diffMins(ref, actual);
+    if (d === null) return { status: 'no-data', diff: null };
+    return { status: Math.abs(d) <= tol ? 'ok' : d > tol ? 'late' : 'early', diff: d };
+  }
+  function diffBadge(d) {
+    if (d === null) return '<span style="color:var(--muted);font-size:11px;">N/A</span>';
+    const sign = d > 0 ? '+' : '';
+    const color = Math.abs(d) <= 2 ? '#10b981' : d > 0 ? '#ef4444' : '#3b82f6';
+    return `<span style="font-family:monospace;font-size:11px;font-weight:700;color:${color};">${sign}${d}m</span>`;
+  }
+
+  try {
+    const [schRes, brkRes, perfRes] = await Promise.all([
+      db.from('schedule').select('agent_id, shift_date, shift_types(start_time)')
+        .gte('shift_date', monthStart).lte('shift_date', monthEnd).eq('day_type','Work'),
+      db.from('breaks').select('agent_id, break_date, break1, lunch, break2, agents(formal_name)')
+        .gte('break_date', monthStart).lte('break_date', monthEnd),
+      db.from('daily_performance').select('agent_id, perf_date, login_time, actual_break1, actual_lunch, actual_break2')
+        .gte('perf_date', monthStart).lte('perf_date', monthEnd),
+    ]);
+
+    const schedMap = {};
+    (schRes.data||[]).forEach(s => { schedMap[s.agent_id+'_'+s.shift_date] = s.shift_types; });
+    const brkMap = {};
+    (brkRes.data||[]).forEach(b => { brkMap[b.agent_id+'_'+b.break_date] = b; });
+    const perfMap = {};
+    (perfRes.data||[]).forEach(p => { perfMap[p.agent_id+'_'+p.perf_date] = p; });
+
+    // Build agents list
+    const agentIds = [...new Set((schRes.data||[]).map(s => s.agent_id))];
+    const agentNames = {};
+    (brkRes.data||[]).forEach(b => { if (b.agents?.formal_name) agentNames[b.agent_id] = b.agents.formal_name; });
+
+    // Build all rows
+    const allRows = [];
+    (schRes.data||[]).forEach(s => {
+      const key  = s.agent_id + '_' + s.shift_date;
+      const brk  = brkMap[key];
+      const perf = perfMap[key];
+      const shiftStart = s.shift_types?.start_time;
+
+      const loginRes = checkT(shiftStart,          perf?.login_time,    TOL_LOGIN);
+      const b1Res    = checkT(brk?.break1,          perf?.actual_break1, TOL_BRK);
+      const lunchRes = checkT(brk?.lunch,           perf?.actual_lunch,  TOL_BRK);
+      const b2Res    = checkT(brk?.break2,          perf?.actual_break2, TOL_BRK);
+
+      const checks  = [loginRes, b1Res, lunchRes, b2Res];
+      const hasData = checks.some(c => c.status !== 'no-data');
+      const hasLate = checks.some(c => c.status === 'late');
+      const allOk   = checks.filter(c => c.status !== 'no-data').every(c => c.status === 'ok' || c.status === 'early');
+      const dayStatus = !hasData ? 'no-data' : hasLate ? 'bad' : allOk ? 'ok' : 'partial';
+
+      allRows.push({
+        date: s.shift_date, agentId: s.agent_id,
+        agentName: agentNames[s.agent_id] || s.agent_id,
+        shiftStart, loginRes, b1Res, lunchRes, b2Res,
+        brk, perf, dayStatus,
+      });
+    });
+
+    allRows.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.agentName.localeCompare(b.agentName));
+
+    // Per-agent summary
+    const agentSummary = {};
+    allRows.forEach(r => {
+      if (!agentSummary[r.agentId]) agentSummary[r.agentId] = {
+        name: r.agentName, worked:0, adherent:0, nonAdherent:0, noData:0, lateLogins:0, lateBreaks:0
+      };
+      const a = agentSummary[r.agentId];
+      a.worked++;
+      if (r.dayStatus==='ok')  a.adherent++;
+      else if (r.dayStatus==='bad') a.nonAdherent++;
+      else a.noData++;
+      if (r.loginRes.status==='late') a.lateLogins++;
+      a.lateBreaks += [r.b1Res,r.lunchRes,r.b2Res].filter(c=>c.status==='late').length;
+    });
+
+    const summaryRows = Object.values(agentSummary).sort((a,b)=>b.nonAdherent-a.nonAdherent);
+    const totalAdherent    = summaryRows.reduce((s,a)=>s+a.adherent,0);
+    const totalNonAdherent = summaryRows.reduce((s,a)=>s+a.nonAdherent,0);
+    const totalWorked      = summaryRows.reduce((s,a)=>s+a.worked,0);
+    const overallRate      = totalWorked > 0 ? Math.round((totalAdherent/totalWorked)*100) : 0;
+
+    // KPIs
+    kpiWrap.innerHTML = [
+      ['📊 Adherence Rate', overallRate+'%', 'var(--gold)'],
+      ['✅ Adherent Days',  totalAdherent, '#10b981'],
+      ['❌ Violations',     totalNonAdherent, '#ef4444'],
+      ['👥 Agents',         summaryRows.length, 'var(--blue)'],
+    ].map(([label,val,color])=>`
+      <div class="kpi-card" style="border-top:3px solid ${color};">
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-value" style="color:${color};">${val}</div>
+      </div>`).join('');
+
+    document.getElementById('adh-report-count').innerText = allRows.length + ' agent-days';
+
+    // Summary table
+    tbody.innerHTML = summaryRows.map(a => {
+      const rate = a.worked > 0 ? Math.round((a.adherent/a.worked)*100) : 0;
+      const barColor = rate>=90?'#10b981':rate>=70?'#f59e0b':'#ef4444';
+      return `<tr>
+        <td><div style="display:flex;align-items:center;gap:8px;">
+          <div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">${a.name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)}</div>
+          <strong>${a.name}</strong></div></td>
+        <td>${a.worked}</td>
+        <td style="color:#10b981;font-weight:700;">${a.adherent}</td>
+        <td style="color:#ef4444;font-weight:700;">${a.nonAdherent}</td>
+        <td style="color:var(--muted);">${a.noData}</td>
+        <td style="color:#f59e0b;font-weight:700;">${a.lateLogins}</td>
+        <td style="color:#8b5cf6;font-weight:700;">${a.lateBreaks}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;min-width:110px;">
+            <div style="flex:1;height:8px;border-radius:4px;background:var(--surface2);overflow:hidden;">
+              <div style="height:100%;width:${rate}%;background:${barColor};border-radius:4px;"></div>
+            </div>
+            <span style="font-weight:800;color:${barColor};font-size:13px;">${rate}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="8"><div class="empty-state">No data</div></td></tr>';
+
+    // Daily detail table
+    const fmt = t => t ? t.substring(0,5) : '—';
+    detailTbody.innerHTML = allRows.map(r => {
+      const dayCls = r.dayStatus==='ok'?'background:rgba(16,185,129,.04);':r.dayStatus==='bad'?'background:rgba(239,68,68,.04);':'';
+      const dayIcon = r.dayStatus==='ok'?'✅':r.dayStatus==='bad'?'❌':r.dayStatus==='partial'?'🟡':'⏳';
+      return `<tr style="${dayCls}">
+        <td style="color:var(--gold);font-weight:700;white-space:nowrap;font-size:12px;">${r.date}</td>
+        <td><strong style="font-size:12px;">${r.agentName}</strong></td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.perf?.login_time)}</td>
+        <td>${diffBadge(r.loginRes.diff)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.perf?.actual_break1)}</td>
+        <td>${diffBadge(r.b1Res.diff)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.perf?.actual_lunch)}</td>
+        <td>${diffBadge(r.lunchRes.diff)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.perf?.actual_break2)}</td>
+        <td>${diffBadge(r.b2Res.diff)}</td>
+        <td><span style="font-size:11px;font-weight:700;">${dayIcon}</span></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="11"><div class="empty-state">No data</div></td></tr>';
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="color:var(--danger);">❌ ${e.message}</div></td></tr>`;
   }
 }
 
