@@ -470,6 +470,7 @@ function processData() {
         const d = byDay[date][agent];
         if (!d.sessions.length) { d.activeSec = 0; return; }
         d.sessions.sort((a,b) => a[0]-b[0]);
+        d.firstLoginSec  = d.sessions[0][0];
         const merged = [d.sessions[0].slice()];
         for (let j = 1; j < d.sessions.length; j++) {
           const last = merged[merged.length-1];
@@ -477,7 +478,8 @@ function processData() {
           if (curr[0] <= last[1]) { last[1] = Math.max(last[1], curr[1]); }
           else { merged.push(curr.slice()); }
         }
-        d.activeSec = merged.reduce((sum, interval) => sum + (interval[1]-interval[0]), 0);
+        d.activeSec      = merged.reduce((sum, interval) => sum + (interval[1]-interval[0]), 0);
+        d.lastLogoutSec  = merged[merged.length-1][1];
       });
     });
 
@@ -624,6 +626,8 @@ async function saveAll() {
           calls:       d.calls,
           talk_sec:    d.talkSec,
           avg_aht:     avgAHT,
+          login_time:  d.firstLoginSec  != null ? secToTimeStr(d.firstLoginSec)  : null,
+          logout_time: d.lastLogoutSec  != null ? secToTimeStr(d.lastLogoutSec)  : null,
           updated_at:  new Date().toISOString(),
         });
       });
@@ -881,6 +885,8 @@ function secToTime(s) {
   const sec=Math.floor(s%60).toString().padStart(2,'0');
   return h+':'+m+':'+sec;
 }
+// DB-safe version (same format, different name for clarity)
+function secToTimeStr(s) { return secToTime(s); }
 
 function formatDateShort(d) {
   if (!d) return '—';
