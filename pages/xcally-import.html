@@ -440,6 +440,7 @@ function processData() {
       const agentName = cols[0]?.trim();
       const enterAt   = cols[1]?.trim();
       const exitAt    = cols[2]?.trim();
+      const evtEvent  = cols[3]?.trim().toUpperCase();
       const eventType = cols[5]?.trim().toLowerCase();
       const duration  = cols[4]?.trim();
       const dateRaw   = cols[8]?.trim() || cols[1]?.trim() || '';
@@ -454,9 +455,21 @@ function processData() {
       if (enterSec < 0 || exitSec < 0) continue;
 
       if (!byDay[date]) byDay[date] = {};
-      if (!byDay[date][agentName]) byDay[date][agentName] = { sessions: [], talkSec: 0, calls: 0 };
+      if (!byDay[date][agentName]) byDay[date][agentName] = {
+        sessions: [], talkSec: 0, calls: 0,
+        loginSec: null, break1Sec: null, lunchSec: null, break2Sec: null,
+      };
 
       if (exitSec > enterSec) byDay[date][agentName].sessions.push([enterSec, exitSec]);
+
+      // ── Capture actual break & login times from specific event types ──
+      const d = byDay[date][agentName];
+      if (evtEvent === 'LOGIN' && eventType === 'universalbar') {
+        if (d.loginSec === null || enterSec < d.loginSec) d.loginSec = enterSec;
+      }
+      if (evtEvent === 'PAUSE' && eventType === 'break 1'  && d.break1Sec === null) d.break1Sec = enterSec;
+      if (evtEvent === 'PAUSE' && eventType === 'lunch'    && d.lunchSec  === null) d.lunchSec  = enterSec;
+      if (evtEvent === 'PAUSE' && eventType === 'break 2'  && d.break2Sec === null) d.break2Sec = enterSec;
 
       if (eventType === 'inbound') {
         const sec = timeToSec(duration);
@@ -616,19 +629,22 @@ async function saveAll() {
         }
 
         upserts.push({
-          agent_id:    agent?.id || null,
-          agent_name:  agent?.formal_name || name,
-          perf_date:   date,
-          active_sec:  d.activeSec,
-          target_sec:  TARGET_SEC,
-          conformance: parseFloat(conf.toFixed(2)),
-          missing_sec: netMissing,
-          calls:       d.calls,
-          talk_sec:    d.talkSec,
-          avg_aht:     avgAHT,
-          login_time:  d.firstLoginSec  != null ? secToTimeStr(d.firstLoginSec)  : null,
-          logout_time: d.lastLogoutSec  != null ? secToTimeStr(d.lastLogoutSec)  : null,
-          updated_at:  new Date().toISOString(),
+          agent_id:      agent?.id || null,
+          agent_name:    agent?.formal_name || name,
+          perf_date:     date,
+          active_sec:    d.activeSec,
+          target_sec:    TARGET_SEC,
+          conformance:   parseFloat(conf.toFixed(2)),
+          missing_sec:   netMissing,
+          calls:         d.calls,
+          talk_sec:      d.talkSec,
+          avg_aht:       avgAHT,
+          login_time:    d.loginSec   != null ? secToTimeStr(d.loginSec)   : null,
+          logout_time:   d.lastLogoutSec != null ? secToTimeStr(d.lastLogoutSec) : null,
+          actual_break1: d.break1Sec  != null ? secToTimeStr(d.break1Sec)  : null,
+          actual_lunch:  d.lunchSec   != null ? secToTimeStr(d.lunchSec)   : null,
+          actual_break2: d.break2Sec  != null ? secToTimeStr(d.break2Sec)  : null,
+          updated_at:    new Date().toISOString(),
         });
       });
     });
