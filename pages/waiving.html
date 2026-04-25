@@ -100,7 +100,7 @@
         <a href="adherence.html" class="btn btn-ghost btn-sm">
           <i class="fas fa-arrow-left"></i> Back to Adherence
         </a>
-        <button class="btn btn-ghost btn-sm" onclick="loadData()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+        <button class="btn btn-ghost btn-sm" onclick="refreshCurrentTab()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
         <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme">
           <i class="fas fa-moon"></i>
         </button>
@@ -701,6 +701,12 @@ async function submitManualWaive() {
 }
 
 // ── HELPERS ──
+function refreshCurrentTab() {
+  const isManual = document.getElementById('tab-manual')?.classList.contains('active');
+  if (!isManual) loadData();
+  // Manual tab has no data to refresh
+}
+
 function formatDateShort(d) {
   if (!d) return '—';
   const dt = new Date(d + 'T00:00:00');
