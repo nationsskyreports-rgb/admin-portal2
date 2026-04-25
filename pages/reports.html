@@ -380,7 +380,7 @@ async function loadAll() {
   const lastDay   = new Date(year, parseInt(month), 0).getDate();
   const dateTo    = year+'-'+month+'-'+String(lastDay).padStart(2,'0')+'T23:59:59';
   document.getElementById('kpi-month-label').innerText = monthName+' '+year;
-  await Promise.all([
+  await Promise.allSettled([
     loadCallStats(dateFrom, dateTo, monthName, year),
     loadKPITable(monthName, year),
     loadRequestsData(),
