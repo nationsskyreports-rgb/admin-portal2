@@ -32,6 +32,40 @@
   background:rgba(239,68,68,0.12); color:#EF4444; border:1px solid rgba(239,68,68,0.2);
 }
 .min-pill.small { background:rgba(245,158,11,0.12); color:#F59E0B; border-color:rgba(245,158,11,0.2); }
+
+/* ── MONTHLY ADHERENCE ── */
+.adh-table { width:100%; border-collapse:collapse; font-size:11px; }
+.adh-table th {
+  padding:7px 8px; background:var(--surface2); color:var(--muted);
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
+  border-bottom:1px solid var(--border); border-right:1px solid var(--border);
+  text-align:center; white-space:nowrap;
+}
+.adh-table th.left { text-align:left; }
+.adh-table td {
+  padding:5px 7px; border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border); text-align:center; vertical-align:middle;
+}
+.adh-table td.left { text-align:left; }
+.adh-table tr.date-group td {
+  background:var(--surface2); font-weight:700; font-size:11px;
+  color:var(--gold); padding:6px 10px; letter-spacing:.5px;
+}
+.adh-chip {
+  display:inline-flex; align-items:center; gap:3px;
+  padding:2px 7px; border-radius:20px; font-size:10px; font-weight:700;
+  font-family:'IBM Plex Mono',monospace; white-space:nowrap;
+}
+.adh-ok   { background:rgba(16,185,129,.12); color:#10B981; border:1px solid rgba(16,185,129,.2); }
+.adh-late { background:rgba(239,68,68,.12);  color:#EF4444; border:1px solid rgba(239,68,68,.2); }
+.adh-early{ background:rgba(59,130,246,.12); color:#3B82F6; border:1px solid rgba(59,130,246,.2); }
+.adh-none { background:var(--surface2);      color:var(--muted); border:1px solid var(--border); }
+.adh-day-ok   { background:rgba(16,185,129,.08); }
+.adh-day-bad  { background:rgba(239,68,68,.06); }
+.adh-day-part { background:rgba(245,158,11,.06); }
+.tol-input { width:64px; padding:5px 8px; text-align:center; font-family:monospace; font-size:13px; }
+.summary-bar { height:8px; border-radius:4px; background:var(--surface2); overflow:hidden; margin-top:3px; }
+.summary-bar-fill { height:100%; border-radius:4px; }
 </style>
 </head>
 <body>
@@ -64,6 +98,15 @@
     </div>
 
     <div class="page-content">
+
+      <!-- ── TABS ── -->
+      <div class="tabs fade-up">
+        <button class="tab-btn active" onclick="switchAdhTab('deviations',this)">📋 Deviations Log</button>
+        <button class="tab-btn" onclick="switchAdhTab('monthly',this)">📅 Monthly Adherence</button>
+      </div>
+
+      <!-- ══════════ TAB: DEVIATIONS ══════════ -->
+      <div id="tab-deviations">
 
       <!-- ── FILTERS ── -->
       <div class="section-card fade-up" style="margin-bottom:14px;">
@@ -246,6 +289,161 @@
         </div>
 
       </div>
+
+      </div><!-- /tab-deviations -->
+
+      <!-- ══════════ TAB: MONTHLY ADHERENCE ══════════ -->
+      <div id="tab-monthly" style="display:none;">
+
+        <!-- Tolerance Settings -->
+        <div class="section-card fade-up" style="margin-bottom:14px;">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-sliders-h" style="color:var(--gold)"></i> Tolerance Settings
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="saveTolerance()">
+              <i class="fas fa-save"></i> Save
+            </button>
+          </div>
+          <div class="section-body">
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label class="form-label">⏰ Login Tolerance (minutes)</label>
+                <input type="number" id="tol-login" class="form-input tol-input" min="0" max="30" value="3">
+                <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+                  Default: 3 min — agent is "On Time" if logged in within ±<span id="tol-login-preview">3</span> min of shift start
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">☕ Break Tolerance (minutes)</label>
+                <input type="number" id="tol-break" class="form-input tol-input" min="0" max="30" value="2">
+                <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+                  Default: 2 min — break is "On Time" if taken within ±<span id="tol-break-preview">2</span> min of scheduled
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly Filters -->
+        <div class="section-card fade-up" style="margin-bottom:14px;">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-filter" style="color:var(--gold)"></i> Monthly Filter
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="loadMonthlyAdherence()">
+              <i class="fas fa-search"></i> Load
+            </button>
+          </div>
+          <div class="section-body">
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label class="form-label">Month</label>
+                <input type="month" id="month-picker" class="form-input">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Agent (optional)</label>
+                <select id="month-agent" class="form-input">
+                  <option value="">All Agents</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly KPI Summary -->
+        <div id="monthly-kpis" style="display:none;" class="fade-up">
+          <div class="kpi-grid" style="margin-bottom:18px;">
+            <div class="kpi-card green">
+              <span class="kpi-icon">✅</span>
+              <div class="kpi-label">Adherent Days</div>
+              <div class="kpi-value" id="mkpi-adherent">—</div>
+              <div class="kpi-sub">All checks passed</div>
+            </div>
+            <div class="kpi-card red">
+              <span class="kpi-icon">❌</span>
+              <div class="kpi-label">Non-Adherent Days</div>
+              <div class="kpi-value" id="mkpi-nonadherent">—</div>
+              <div class="kpi-sub">At least 1 violation</div>
+            </div>
+            <div class="kpi-card gold">
+              <span class="kpi-icon">📊</span>
+              <div class="kpi-label">Adherence Rate</div>
+              <div class="kpi-value" id="mkpi-rate">—</div>
+              <div class="kpi-sub">Days with data only</div>
+            </div>
+            <div class="kpi-card orange">
+              <span class="kpi-icon">⏰</span>
+              <div class="kpi-label">Late Logins</div>
+              <div class="kpi-value" id="mkpi-latelogin">—</div>
+              <div class="kpi-sub">Over login tolerance</div>
+            </div>
+            <div class="kpi-card purple">
+              <span class="kpi-icon">☕</span>
+              <div class="kpi-label">Late Breaks</div>
+              <div class="kpi-value" id="mkpi-latebreak">—</div>
+              <div class="kpi-sub">Over break tolerance</div>
+            </div>
+            <div class="kpi-card blue">
+              <span class="kpi-icon">👥</span>
+              <div class="kpi-label">Agents Tracked</div>
+              <div class="kpi-value" id="mkpi-agents">—</div>
+              <div class="kpi-sub">This month</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily Grid -->
+        <div class="section-card fade-up">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-calendar-check" style="color:var(--gold)"></i>
+              Daily Adherence Log
+            </div>
+            <span id="monthly-row-count" style="font-size:11px;color:var(--muted);"></span>
+          </div>
+          <div class="section-body no-pad">
+            <div class="table-wrap" style="overflow-x:auto;">
+              <div id="monthly-grid">
+                <div class="empty-state" style="padding:40px;">
+                  <span class="empty-icon">📅</span>
+                  Select a month and click Load
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Per-Agent Monthly Summary -->
+        <div class="section-card fade-up" id="agent-summary-card" style="display:none;margin-top:18px;">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-users" style="color:var(--gold)"></i>
+              Agent Monthly Summary
+            </div>
+          </div>
+          <div class="section-body no-pad">
+            <div class="table-wrap">
+              <table class="nos-table" id="agent-summary-table">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Days Worked</th>
+                    <th>Adherent</th>
+                    <th>Non-Adherent</th>
+                    <th>No Data</th>
+                    <th>Late Logins</th>
+                    <th>Late Breaks</th>
+                    <th>Adherence %</th>
+                  </tr>
+                </thead>
+                <tbody id="agent-summary-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /tab-monthly -->
 
     </div>
   </div>
@@ -936,6 +1134,345 @@ async function addDeviationFromBreak(agentName, date, breakType, sched, actual, 
 
   if (error) { showToast('Failed: ' + error.message, 'error'); return; }
   showToast('Deviation added ✅', 'success');
+}
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   MONTHLY ADHERENCE — Full Implementation
+══════════════════════════════════════════════════════════════ */
+
+// ── Tab switch ──
+function switchAdhTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-deviations').style.display = tab === 'deviations' ? 'block' : 'none';
+  document.getElementById('tab-monthly').style.display    = tab === 'monthly'    ? 'block' : 'none';
+}
+
+// ── Tolerance settings (localStorage) ──
+const TOL_KEYS = { login: 'nos_tol_login', break: 'nos_tol_break' };
+
+function loadTolerance() {
+  const login = parseInt(localStorage.getItem(TOL_KEYS.login) ?? '3');
+  const brk   = parseInt(localStorage.getItem(TOL_KEYS.break) ?? '2');
+  document.getElementById('tol-login').value = login;
+  document.getElementById('tol-break').value = brk;
+  document.getElementById('tol-login-preview').innerText = login;
+  document.getElementById('tol-break-preview').innerText = brk;
+  document.getElementById('tol-login').oninput = () =>
+    document.getElementById('tol-login-preview').innerText = document.getElementById('tol-login').value;
+  document.getElementById('tol-break').oninput = () =>
+    document.getElementById('tol-break-preview').innerText = document.getElementById('tol-break').value;
+}
+
+function saveTolerance() {
+  const login = parseInt(document.getElementById('tol-login').value) || 3;
+  const brk   = parseInt(document.getElementById('tol-break').value) || 2;
+  localStorage.setItem(TOL_KEYS.login, login);
+  localStorage.setItem(TOL_KEYS.break, brk);
+  showToast('Tolerance settings saved ✅', 'success');
+}
+
+function getTolerance() {
+  return {
+    login: parseInt(localStorage.getItem(TOL_KEYS.login) ?? '3'),
+    brk:   parseInt(localStorage.getItem(TOL_KEYS.break) ?? '2'),
+  };
+}
+
+// ── Init monthly tab ──
+(function initMonthly() {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+  document.getElementById('month-picker').value = today.slice(0, 7);
+  loadTolerance();
+  // Populate agent dropdown from allAgents (available after init())
+  const sel = document.getElementById('month-agent');
+  setTimeout(() => {
+    (window.allAgents || []).forEach(a => sel.add(new Option(a.formal_name, a.id)));
+  }, 800);
+})();
+
+// ── Core check function ──
+function timeToMinsAdh(t) {
+  if (!t) return null;
+  const p = t.substring(0, 5).split(':');
+  return (+p[0]) * 60 + (+p[1]);
+}
+
+function checkTime(scheduled, actual, toleranceMins) {
+  const sMin = timeToMinsAdh(scheduled);
+  const aMin = timeToMinsAdh(actual);
+  if (sMin === null || aMin === null) return { status: 'no-data', diff: null };
+  const diff = aMin - sMin; // positive = late, negative = early
+  if (Math.abs(diff) <= toleranceMins) return { status: 'ok', diff };
+  if (diff > toleranceMins)            return { status: 'late', diff };
+  return                                      { status: 'early', diff };
+}
+
+function chipHTML(result, label) {
+  if (!result) return `<span class="adh-chip adh-none">—</span>`;
+  const { status, diff } = result;
+  if (status === 'no-data') return `<span class="adh-chip adh-none" title="${label}">N/A</span>`;
+  const icon  = status === 'ok' ? '✅' : status === 'late' ? '🔴' : '🔵';
+  const cls   = status === 'ok' ? 'adh-ok' : status === 'late' ? 'adh-late' : 'adh-early';
+  const sign  = diff > 0 ? '+' : '';
+  const label2 = diff !== null ? `${sign}${diff}m` : '';
+  return `<span class="adh-chip ${cls}" title="${label}">${icon} ${label2}</span>`;
+}
+
+function diffText(diff) {
+  if (diff === null || diff === undefined) return '—';
+  const sign = diff >= 0 ? '+' : '';
+  return `<span style="font-family:monospace;font-size:11px;color:${diff > 0 ? '#ef4444' : diff < 0 ? '#3b82f6' : '#10b981'};">${sign}${diff}m</span>`;
+}
+
+// ── MAIN LOAD ──
+async function loadMonthlyAdherence() {
+  const monthVal  = document.getElementById('month-picker').value; // YYYY-MM
+  const agentFilt = document.getElementById('month-agent').value;
+  if (!monthVal) { showToast('Select a month first', 'warning'); return; }
+
+  const [year, month] = monthVal.split('-').map(Number);
+  const monthStart = `${year}-${String(month).padStart(2,'0')}-01`;
+  const lastDay    = new Date(year, month, 0).getDate();
+  const monthEnd   = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+
+  const tol = getTolerance();
+
+  document.getElementById('monthly-grid').innerHTML =
+    '<div class="loading-wrap" style="padding:40px;"><div class="spinner"></div></div>';
+  document.getElementById('monthly-kpis').style.display = 'none';
+  document.getElementById('agent-summary-card').style.display = 'none';
+  document.getElementById('monthly-row-count').innerText = '';
+
+  try {
+    // 1. Schedule (work days + shift start times)
+    let schQ = db.from('schedule')
+      .select('agent_id, shift_date, shift_types(start_time, end_time)')
+      .gte('shift_date', monthStart)
+      .lte('shift_date', monthEnd)
+      .eq('day_type', 'Work');
+    if (agentFilt) schQ = schQ.eq('agent_id', agentFilt);
+    const { data: schedules, error: schErr } = await schQ;
+    if (schErr) throw schErr;
+
+    // 2. Breaks
+    let brkQ = db.from('breaks')
+      .select('agent_id, break_date, break1, lunch, break2, scheduled_break1, scheduled_lunch, scheduled_break2')
+      .gte('break_date', monthStart)
+      .lte('break_date', monthEnd);
+    if (agentFilt) brkQ = brkQ.eq('agent_id', agentFilt);
+    const { data: breaks, error: brkErr } = await brkQ;
+    if (brkErr) throw brkErr;
+
+    // 3. Login times from daily_performance
+    let perfQ = db.from('daily_performance')
+      .select('agent_id, perf_date, login_time')
+      .gte('perf_date', monthStart)
+      .lte('perf_date', monthEnd);
+    if (agentFilt) perfQ = perfQ.eq('agent_id', agentFilt);
+    const { data: perfs, error: perfErr } = await perfQ;
+    if (perfErr) throw perfErr;
+
+    // Index data
+    const schedMap = {}; // "agentId_date" → { start_time, end_time }
+    (schedules || []).forEach(s => {
+      schedMap[s.agent_id + '_' + s.shift_date] = s.shift_types;
+    });
+
+    const brkMap = {}; // "agentId_date" → break record
+    (breaks || []).forEach(b => { brkMap[b.agent_id + '_' + b.break_date] = b; });
+
+    const perfMap = {}; // "agentId_date" → login_time
+    (perfs || []).forEach(p => { perfMap[p.agent_id + '_' + p.perf_date] = p.login_time; });
+
+    // Get unique agents who worked this month
+    const agentIds  = [...new Set((schedules || []).map(s => s.agent_id))];
+    const agentObjs = (window.allAgents || []).filter(a => agentIds.includes(a.id));
+
+    // Build all rows sorted by date then agent name
+    const allRows = [];
+    (schedules || []).forEach(s => {
+      const agent = agentObjs.find(a => a.id === s.agent_id);
+      if (!agent) return;
+      const shiftInfo  = schedMap[s.agent_id + '_' + s.shift_date];
+      const brkRecord  = brkMap[s.agent_id  + '_' + s.shift_date];
+      const loginActual = perfMap[s.agent_id + '_' + s.shift_date];
+
+      const loginRes  = checkTime(shiftInfo?.start_time, loginActual, tol.login);
+      const b1Res     = checkTime(brkRecord?.scheduled_break1, brkRecord?.break1, tol.brk);
+      const lunchRes  = checkTime(brkRecord?.scheduled_lunch,  brkRecord?.lunch,  tol.brk);
+      const b2Res     = checkTime(brkRecord?.scheduled_break2, brkRecord?.break2, tol.brk);
+
+      // Day status
+      const checks = [loginRes, b1Res, lunchRes, b2Res];
+      const hasData = checks.some(c => c.status !== 'no-data');
+      const hasLate = checks.some(c => c.status === 'late');
+      const allOk   = checks.filter(c => c.status !== 'no-data').every(c => c.status === 'ok' || c.status === 'early');
+      let dayStatus = 'no-data';
+      if (hasData) dayStatus = hasLate ? 'bad' : allOk ? 'ok' : 'partial';
+
+      allRows.push({
+        date:       s.shift_date,
+        agentId:    s.agent_id,
+        agentName:  agent.formal_name,
+        shiftStart: shiftInfo?.start_time,
+        loginActual,
+        loginRes,
+        b1Res, lunchRes, b2Res,
+        brkRecord,
+        dayStatus,
+      });
+    });
+
+    allRows.sort((a, b) => {
+      if (a.date < b.date) return -1;
+      if (a.date > b.date) return  1;
+      return a.agentName.localeCompare(b.agentName);
+    });
+
+    if (!allRows.length) {
+      document.getElementById('monthly-grid').innerHTML =
+        '<div class="empty-state" style="padding:40px;"><span class="empty-icon">📭</span>No working days found for this month</div>';
+      return;
+    }
+
+    // ── Render KPIs ──
+    const adherentDays    = allRows.filter(r => r.dayStatus === 'ok').length;
+    const nonAdherentDays = allRows.filter(r => r.dayStatus === 'bad').length;
+    const dataRows        = allRows.filter(r => r.dayStatus !== 'no-data').length;
+    const rate            = dataRows > 0 ? Math.round((adherentDays / dataRows) * 100) : 0;
+    const lateLogins      = allRows.filter(r => r.loginRes.status === 'late').length;
+    const lateBreaks      = allRows.reduce((s, r) =>
+      s + [r.b1Res, r.lunchRes, r.b2Res].filter(c => c.status === 'late').length, 0);
+
+    document.getElementById('mkpi-adherent').innerText    = adherentDays;
+    document.getElementById('mkpi-nonadherent').innerText = nonAdherentDays;
+    document.getElementById('mkpi-rate').innerText        = rate + '%';
+    document.getElementById('mkpi-latelogin').innerText   = lateLogins;
+    document.getElementById('mkpi-latebreak').innerText   = lateBreaks;
+    document.getElementById('mkpi-agents').innerText      = agentIds.length;
+    document.getElementById('monthly-kpis').style.display = 'block';
+    document.getElementById('monthly-row-count').innerText = allRows.length + ' records';
+
+    // ── Render main grid ──
+    let html = `<table class="adh-table">
+      <thead><tr>
+        <th class="left" style="min-width:90px;">Date</th>
+        <th class="left" style="min-width:130px;">Agent</th>
+        <th style="min-width:80px;">Shift</th>
+        <th colspan="3" style="border-left:2px solid var(--border);">⏰ Login</th>
+        <th colspan="3" style="border-left:2px solid var(--border);">☕ Break 1</th>
+        <th colspan="3" style="border-left:2px solid var(--border);">🍽️ Lunch</th>
+        <th colspan="3" style="border-left:2px solid var(--border);">🫖 Break 2</th>
+        <th style="min-width:80px;">Day</th>
+      </tr>
+      <tr>
+        <th class="left"></th><th class="left"></th><th></th>
+        <th style="border-left:2px solid var(--border);">Sched</th><th>Actual</th><th>Status</th>
+        <th style="border-left:2px solid var(--border);">Sched</th><th>Actual</th><th>Status</th>
+        <th style="border-left:2px solid var(--border);">Sched</th><th>Actual</th><th>Status</th>
+        <th style="border-left:2px solid var(--border);">Sched</th><th>Actual</th><th>Status</th>
+        <th></th>
+      </tr></thead><tbody>`;
+
+    let lastDate = '';
+    allRows.forEach(r => {
+      if (r.date !== lastDate) {
+        lastDate = r.date;
+        const d   = new Date(r.date + 'T00:00:00');
+        const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const label = days[d.getDay()] + ' ' + d.toLocaleDateString('en-GB', {day:'2-digit', month:'short'});
+        html += `<tr class="date-group"><td colspan="17">${label}</td></tr>`;
+      }
+
+      const dayCls = r.dayStatus === 'ok' ? 'adh-day-ok' : r.dayStatus === 'bad' ? 'adh-day-bad' : r.dayStatus === 'partial' ? 'adh-day-part' : '';
+      const dayIcon = r.dayStatus === 'ok' ? '✅ Adherent' : r.dayStatus === 'bad' ? '❌ Violation' : r.dayStatus === 'partial' ? '🟡 Partial' : '⏳ No Data';
+
+      const fmt = t => t ? t.substring(0,5) : '—';
+
+      html += `<tr class="${dayCls}">
+        <td class="left"></td>
+        <td class="left">
+          <div style="display:flex;align-items:center;gap:7px;">
+            <div class="agent-avatar" style="width:24px;height:24px;font-size:9px;">${initials(r.agentName)}</div>
+            <span style="font-weight:700;font-size:12px;">${r.agentName}</span>
+          </div>
+        </td>
+        <td style="font-family:monospace;font-size:11px;color:var(--muted);">${fmt(r.shiftStart)}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.shiftStart)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.loginActual)}</td>
+        <td>${chipHTML(r.loginRes, 'Login')}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.scheduled_break1)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.break1)}</td>
+        <td>${chipHTML(r.b1Res, 'Break 1')}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.scheduled_lunch)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.lunch)}</td>
+        <td>${chipHTML(r.lunchRes, 'Lunch')}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.scheduled_break2)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.break2)}</td>
+        <td>${chipHTML(r.b2Res, 'Break 2')}</td>
+        <td><span style="font-size:11px;font-weight:700;">${dayIcon}</span></td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    document.getElementById('monthly-grid').innerHTML = html;
+
+    // ── Render per-agent summary ──
+    const agentMap = {};
+    allRows.forEach(r => {
+      if (!agentMap[r.agentId]) agentMap[r.agentId] = {
+        name: r.agentName, worked: 0, adherent: 0, nonAdherent: 0,
+        noData: 0, lateLogins: 0, lateBreaks: 0,
+      };
+      const a = agentMap[r.agentId];
+      a.worked++;
+      if (r.dayStatus === 'ok')      a.adherent++;
+      else if (r.dayStatus === 'bad') a.nonAdherent++;
+      else                            a.noData++;
+      if (r.loginRes.status === 'late') a.lateLogins++;
+      a.lateBreaks += [r.b1Res, r.lunchRes, r.b2Res].filter(c => c.status === 'late').length;
+    });
+
+    const summaryRows = Object.values(agentMap).sort((a,b) => b.nonAdherent - a.nonAdherent);
+    const summaryHTML = summaryRows.map(a => {
+      const rate = a.worked > 0 ? Math.round((a.adherent / a.worked) * 100) : 0;
+      const barColor = rate >= 90 ? '#10B981' : rate >= 70 ? '#f59e0b' : '#ef4444';
+      return `<tr>
+        <td class="left">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">${initials(a.name)}</div>
+            <span style="font-weight:700;">${a.name}</span>
+          </div>
+        </td>
+        <td>${a.worked}</td>
+        <td style="color:#10B981;font-weight:700;">${a.adherent}</td>
+        <td style="color:#ef4444;font-weight:700;">${a.nonAdherent}</td>
+        <td style="color:var(--muted);">${a.noData}</td>
+        <td style="color:#f59e0b;font-weight:700;">${a.lateLogins}</td>
+        <td style="color:#8b5cf6;font-weight:700;">${a.lateBreaks}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;min-width:120px;">
+            <div style="flex:1;">
+              <div class="summary-bar">
+                <div class="summary-bar-fill" style="width:${rate}%;background:${barColor};"></div>
+              </div>
+            </div>
+            <span style="font-weight:800;color:${barColor};font-size:13px;">${rate}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('agent-summary-tbody').innerHTML = summaryHTML;
+    document.getElementById('agent-summary-card').style.display = 'block';
+
+  } catch(e) {
+    document.getElementById('monthly-grid').innerHTML =
+      `<div class="empty-state" style="padding:40px;color:var(--danger);"><span class="empty-icon">❌</span>${e.message}</div>`;
+    showToast('Failed: ' + e.message, 'error');
+  }
 }
 </script>
 </body>
