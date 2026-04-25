@@ -38,29 +38,7 @@
   background:rgba(16,185,129,0.12); color:#10B981; border:1px solid rgba(16,185,129,0.2);
 }
 
-/* ── TABS ── */
-.tabs-bar {
-  display:flex; gap:4px;
-  background:rgba(255,255,255,0.04);
-  border:1px solid rgba(255,255,255,0.08);
-  border-radius:12px; padding:4px;
-  margin-bottom:20px;
-}
-.tab-btn {
-  flex:1; padding:9px 18px; border-radius:9px;
-  background:transparent; border:none; cursor:pointer;
-  font-size:13px; font-weight:600; color:var(--muted);
-  display:flex; align-items:center; justify-content:center; gap:8px;
-  transition:all .2s;
-}
-.tab-btn:hover { color:var(--text); background:rgba(255,255,255,0.05); }
-.tab-btn.active {
-  background:var(--gold);
-  color:#000;
-  box-shadow:0 2px 12px rgba(212,175,55,0.3);
-}
-.tab-panel { display:none; }
-.tab-panel.active { display:block; }
+/* ── TABS ── moved to main.css shared .tabs class */
 
 /* ── MANUAL WAIVE FORM ── */
 .manual-waive-card {
@@ -136,7 +114,7 @@
     <div class="page-content">
 
       <!-- ── TABS ── -->
-      <div class="tabs-bar fade-up">
+      <div class="tabs fade-up">
         <button class="tab-btn active" id="tab-history-btn" onclick="switchTab('history')">
           <i class="fas fa-history"></i> Waive History
         </button>
@@ -695,6 +673,8 @@ async function submitManualWaive() {
       waived_by:         adminName,
       waived_at:         new Date().toISOString(),
       waive_reason:      reason || null,
+      source:            'Manual',
+      created_by:        adminName,
     });
     if (error) throw error;
 
