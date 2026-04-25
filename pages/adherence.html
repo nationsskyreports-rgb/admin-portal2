@@ -554,6 +554,7 @@ if (session) {
 }
 
 let allAgents = [];
+window.allAgents = allAgents;
 let currentData = [];
 let waiveTargetId = null;
 
@@ -564,6 +565,7 @@ async function init() {
     .eq('status','Active')
     .order('formal_name');
   allAgents = data || [];
+  window.allAgents = allAgents;
 
   const filterSel = document.getElementById('filter-agent');
   const addSel    = document.getElementById('add-agent');
@@ -1128,7 +1130,7 @@ async function addDeviationFromBreak(agentName, date, breakType, sched, actual, 
     actual_value:      actual,
     deviation_minutes: Math.abs(diffMins),
     notes:             `Break Change: ${breakType} — Scheduled ${sched} → Actual ${actual}`,
-    source:            'Auto-Break',
+    source:            'Manual',
     created_by:        session?.username || 'Admin',
   });
 
@@ -1147,6 +1149,7 @@ function switchAdhTab(tab, btn) {
   btn.classList.add('active');
   document.getElementById('tab-deviations').style.display = tab === 'deviations' ? 'block' : 'none';
   document.getElementById('tab-monthly').style.display    = tab === 'monthly'    ? 'block' : 'none';
+  if (tab === 'monthly') populateMonthAgents();
 }
 
 // ── Tolerance settings (localStorage) ──
@@ -1185,12 +1188,13 @@ function getTolerance() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
   document.getElementById('month-picker').value = today.slice(0, 7);
   loadTolerance();
-  // Populate agent dropdown from allAgents (available after init())
-  const sel = document.getElementById('month-agent');
-  setTimeout(() => {
-    (window.allAgents || []).forEach(a => sel.add(new Option(a.formal_name, a.id)));
-  }, 800);
 })();
+
+function populateMonthAgents() {
+  const sel = document.getElementById('month-agent');
+  if (sel.options.length > 1) return;
+  allAgents.forEach(a => sel.add(new Option(a.formal_name, a.id)));
+}
 
 // ── Core check function ──
 function timeToMinsAdh(t) {
@@ -1267,7 +1271,7 @@ async function loadMonthlyAdherence() {
 
     // 3. Login times from daily_performance
     let perfQ = db.from('daily_performance')
-      .select('agent_id, perf_date, login_time')
+      .select('agent_id, perf_date, login_time, actual_break1, actual_lunch, actual_break2')
       .gte('perf_date', monthStart)
       .lte('perf_date', monthEnd);
     if (agentFilt) perfQ = perfQ.eq('agent_id', agentFilt);
@@ -1283,12 +1287,12 @@ async function loadMonthlyAdherence() {
     const brkMap = {}; // "agentId_date" → break record
     (breaks || []).forEach(b => { brkMap[b.agent_id + '_' + b.break_date] = b; });
 
-    const perfMap = {}; // "agentId_date" → login_time
-    (perfs || []).forEach(p => { perfMap[p.agent_id + '_' + p.perf_date] = p.login_time; });
+    const perfMap = {}; // "agentId_date" → full perf record
+    (perfs || []).forEach(p => { perfMap[p.agent_id + '_' + p.perf_date] = p; });
 
     // Get unique agents who worked this month
     const agentIds  = [...new Set((schedules || []).map(s => s.agent_id))];
-    const agentObjs = (window.allAgents || []).filter(a => agentIds.includes(a.id));
+    const agentObjs = allAgents.filter(a => agentIds.includes(a.id));
 
     // Build all rows sorted by date then agent name
     const allRows = [];
@@ -1297,12 +1301,18 @@ async function loadMonthlyAdherence() {
       if (!agent) return;
       const shiftInfo  = schedMap[s.agent_id + '_' + s.shift_date];
       const brkRecord  = brkMap[s.agent_id  + '_' + s.shift_date];
-      const loginActual = perfMap[s.agent_id + '_' + s.shift_date];
+      const perf       = perfMap[s.agent_id + '_' + s.shift_date];
+      const loginActual = perf?.login_time    || null;
+      const b1Actual    = perf?.actual_break1 || null;
+      const lunchActual = perf?.actual_lunch  || null;
+      const b2Actual    = perf?.actual_break2 || null;
 
-      const loginRes  = checkTime(shiftInfo?.start_time, loginActual, tol.login);
-      const b1Res     = checkTime(brkRecord?.scheduled_break1, brkRecord?.break1, tol.brk);
-      const lunchRes  = checkTime(brkRecord?.scheduled_lunch,  brkRecord?.lunch,  tol.brk);
-      const b2Res     = checkTime(brkRecord?.scheduled_break2, brkRecord?.break2, tol.brk);
+      // Reference = last committed time (break1 after any agent swap, or scheduled if no swap)
+      // Actual    = real time from xCALLY report
+      const loginRes  = checkTime(shiftInfo?.start_time,       loginActual, tol.login);
+      const b1Res     = checkTime(brkRecord?.break1,            b1Actual,   tol.brk);
+      const lunchRes  = checkTime(brkRecord?.lunch,             lunchActual, tol.brk);
+      const b2Res     = checkTime(brkRecord?.break2,            b2Actual,   tol.brk);
 
       // Day status
       const checks = [loginRes, b1Res, lunchRes, b2Res];
@@ -1318,6 +1328,7 @@ async function loadMonthlyAdherence() {
         agentName:  agent.formal_name,
         shiftStart: shiftInfo?.start_time,
         loginActual,
+        b1Actual, lunchActual, b2Actual,
         loginRes,
         b1Res, lunchRes, b2Res,
         brkRecord,
@@ -1400,17 +1411,17 @@ async function loadMonthlyAdherence() {
           </div>
         </td>
         <td style="font-family:monospace;font-size:11px;color:var(--muted);">${fmt(r.shiftStart)}</td>
-        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.shiftStart)}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;color:var(--muted);">${fmt(r.shiftStart)}</td>
         <td style="font-family:monospace;font-size:11px;">${fmt(r.loginActual)}</td>
         <td>${chipHTML(r.loginRes, 'Login')}</td>
-        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.scheduled_break1)}</td>
-        <td style="font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.break1)}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;color:var(--muted);">${fmt(r.brkRecord?.break1)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.b1Actual)}</td>
         <td>${chipHTML(r.b1Res, 'Break 1')}</td>
-        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.scheduled_lunch)}</td>
-        <td style="font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.lunch)}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;color:var(--muted);">${fmt(r.brkRecord?.lunch)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.lunchActual)}</td>
         <td>${chipHTML(r.lunchRes, 'Lunch')}</td>
-        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.scheduled_break2)}</td>
-        <td style="font-family:monospace;font-size:11px;">${fmt(r.brkRecord?.break2)}</td>
+        <td style="border-left:2px solid var(--border);font-family:monospace;font-size:11px;color:var(--muted);">${fmt(r.brkRecord?.break2)}</td>
+        <td style="font-family:monospace;font-size:11px;">${fmt(r.b2Actual)}</td>
         <td>${chipHTML(r.b2Res, 'Break 2')}</td>
         <td><span style="font-size:11px;font-weight:700;">${dayIcon}</span></td>
       </tr>`;
