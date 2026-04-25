@@ -373,6 +373,8 @@ function switchTab(name, btn) {
 }
 
 async function loadAll() {
+  const btn = document.querySelector('.btn-ghost .fa-sync-alt')?.parentElement;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i>'; }
   const month     = document.getElementById('month-filter').value;
   const year      = parseInt(document.getElementById('year-filter').value);
   const monthName = MONTH_NAMES[parseInt(month)];
@@ -386,6 +388,8 @@ async function loadAll() {
     loadRequestsData(),
     loadAdherenceReport(year, parseInt(month), monthName),
   ]);
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i>'; }
+  showToast('All reports refreshed', 'success');
 }
 
 async function loadCallStats(dateFrom, dateTo, monthName, year) {
