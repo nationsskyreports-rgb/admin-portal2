@@ -9,7 +9,8 @@ if (session) {
 let allAgents = [];
 window.allAgents = allAgents;
 let currentData = [];
-let waiveTargetId = null;
+let waiveTargetId      = null;
+let waiveTargetMinutes = 0;
 
 // ── TIME OFFSET HELPER ──
 function getHourOffset() {
@@ -300,7 +301,9 @@ function renderTopOffenders(data) {
 function openWaiveModal(id) {
   const r = currentData.find(x => x.id === id);
   if (!r) return;
-  waiveTargetId = id;
+  waiveTargetId      = id;
+  waiveTargetMinutes = r.deviation_minutes || 0;
+
   document.getElementById('waive-preview').innerHTML = `
     <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">${r.agent_name}</div>
@@ -310,38 +313,144 @@ function openWaiveModal(id) {
       </div>
     </div>
   `;
+
+  // Reset partial waive fields
+  const minsInput = document.getElementById('waive-minutes');
+  minsInput.max   = waiveTargetMinutes;
+  minsInput.value = waiveTargetMinutes; // default = full waive
+  document.getElementById('waive-total-label').innerText    = waiveTargetMinutes;
+  document.getElementById('waive-split-preview').style.display = 'none';
   document.getElementById('waive-reason').value = '';
   document.getElementById('waive-modal').classList.add('open');
 }
 
+function setWaiveAll() {
+  document.getElementById('waive-minutes').value = waiveTargetMinutes;
+  onWaiveMinutesInput();
+}
+
+function onWaiveMinutesInput() {
+  const entered   = parseInt(document.getElementById('waive-minutes').value) || 0;
+  const total     = waiveTargetMinutes;
+  const remaining = total - entered;
+  const preview   = document.getElementById('waive-split-preview');
+  const btn       = document.getElementById('waive-confirm-btn');
+
+  if (entered <= 0 || entered > total) {
+    preview.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+  btn.disabled = false;
+
+  if (entered === total) {
+    preview.style.display = 'none';
+    return;
+  }
+
+  // Partial waive — show split
+  const hW = Math.floor(entered / 60), mW = entered % 60;
+  const hR = Math.floor(remaining / 60), mR = remaining % 60;
+  const fmtW = hW > 0 ? `${hW}h ${mW}m` : `${mW} min`;
+  const fmtR = hR > 0 ? `${hR}h ${mR}m` : `${mR} min`;
+
+  preview.style.display = 'block';
+  preview.innerHTML = `
+    <span style="color:#10B981;">✔ Waived: <strong>${entered} min</strong> (${fmtW})</span><br>
+    <span style="color:#F59E0B;">⚠ Still active: <strong>${remaining} min</strong> (${fmtR})</span><br>
+    <span style="font-size:11px;color:var(--muted);">The original deviation will be split — ${remaining} min stays active.</span>
+  `;
+}
+
 function closeWaiveModal() {
   document.getElementById('waive-modal').classList.remove('open');
-  waiveTargetId = null;
+  waiveTargetId      = null;
+  waiveTargetMinutes = 0;
+  const btn = document.getElementById('waive-confirm-btn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Confirm Waive'; }
 }
 
 async function confirmWaive() {
-  const reason = document.getElementById('waive-reason').value.trim();
-  if (!reason) { showToast('Please enter a reason', 'warning'); return; }
+  const reason    = document.getElementById('waive-reason').value.trim();
+  const waivedMin = parseInt(document.getElementById('waive-minutes').value) || 0;
+
+  if (!reason)   { showToast('Please enter a reason', 'warning'); return; }
+  if (waivedMin <= 0 || waivedMin > waiveTargetMinutes) {
+    showToast('Enter a valid number of minutes to waive', 'warning'); return;
+  }
   if (!waiveTargetId) return;
 
-  try {
-    const _rec = (typeof allDeviations !== 'undefined' ? allDeviations : []).find?.(d => d.id === waiveTargetId);
-    const { error } = await db.from('adherence_deviations').update({
-      is_waived:    true,
-      waived_by:    session?.username || 'Admin',
-      waived_at:    new Date().toISOString(),
-      waive_reason: reason,
-    }).eq('id', waiveTargetId);
-    if (error) throw error;
-    logAudit({ module: 'Adherence', action: 'UPDATE', targetTable: 'adherence_deviations', targetId: waiveTargetId,
-      description: _rec
-        ? `Waived ${_rec.deviation_type} (${_rec.deviation_minutes} min) for ${_rec.agent_name} on ${_rec.deviation_date} — reason: ${reason}`
-        : `Waived deviation (id: ${waiveTargetId}) — reason: ${reason}` });
+  const rec       = currentData.find(x => x.id === waiveTargetId);
+  if (!rec) return;
 
-    showToast('Deviation waived successfully', 'success');
+  const adminName = session?.username || 'Admin';
+  const now       = new Date().toISOString();
+  const isPartial = waivedMin < waiveTargetMinutes;
+  const remaining = waiveTargetMinutes - waivedMin;
+
+  const btn = document.getElementById('waive-confirm-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+  try {
+    if (!isPartial) {
+      // ── FULL WAIVE — update existing record ──
+      const { error } = await db.from('adherence_deviations').update({
+        is_waived:    true,
+        waived_by:    adminName,
+        waived_at:    now,
+        waive_reason: reason,
+      }).eq('id', waiveTargetId);
+      if (error) throw error;
+
+      logAudit({ module: 'Adherence', action: 'UPDATE', targetTable: 'adherence_deviations', targetId: waiveTargetId,
+        description: `Waived ${rec.deviation_type} (${waivedMin} min) for ${rec.agent_name} on ${rec.deviation_date} — reason: ${reason}` });
+
+      showToast('Deviation waived successfully', 'success');
+
+    } else {
+      // ── PARTIAL WAIVE ──
+      // 1. Shrink original record to remaining minutes (stays active)
+      const { error: e1 } = await db.from('adherence_deviations').update({
+        deviation_minutes: remaining,
+        notes: (rec.notes ? rec.notes + ' | ' : '') + `Partial waive: ${waivedMin} min waived by ${adminName}`,
+      }).eq('id', waiveTargetId);
+      if (e1) throw e1;
+
+      // 2. Insert waived record for the forgiven portion
+      const { error: e2 } = await db.from('adherence_deviations').insert({
+        agent_id:          rec.agent_id,
+        agent_name:        rec.agent_name,
+        deviation_date:    rec.deviation_date,
+        deviation_type:    rec.deviation_type,
+        scheduled_value:   rec.scheduled_value || null,
+        actual_value:      rec.actual_value    || null,
+        deviation_minutes: waivedMin,
+        is_waived:         true,
+        waived_by:         adminName,
+        waived_at:         now,
+        waive_reason:      reason,
+        source:            rec.source || 'Manual',
+        created_by:        adminName,
+        notes:             `Partial waive split from deviation (${waiveTargetMinutes} min total)`,
+      });
+      if (e2) throw e2;
+
+      logAudit({ module: 'Adherence', action: 'UPDATE', targetTable: 'adherence_deviations', targetId: waiveTargetId,
+        description: `Partial waive: ${waivedMin} min waived, ${remaining} min stays active — ${rec.deviation_type} for ${rec.agent_name} on ${rec.deviation_date} — reason: ${reason}` });
+
+      showToast(`Partial waive saved — ${waivedMin} min waived, ${remaining} min still active`, 'success');
+    }
+
     closeWaiveModal();
     await loadData();
-  } catch(e) { showToast('Failed: '+e.message, 'error'); }
+
+  } catch(e) {
+    showToast('Failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check"></i> Confirm Waive';
+  }
 }
 
 function showWaiveDetails(id) {
