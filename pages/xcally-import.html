@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="../css/main.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 .drop-zone {
   border: 2px dashed var(--border2);
@@ -263,6 +264,9 @@
                 <button class="view-tab active" id="ht-detailed" onclick="setHistoryTab('detailed',this)">Detailed</button>
                 <button class="view-tab" id="ht-summary" onclick="setHistoryTab('summary',this)">Summary</button>
               </div>
+              <button class="btn btn-ghost btn-sm" onclick="exportHistoryExcel()" title="Export to Excel" style="gap:6px;">
+                <i class="fas fa-file-excel" style="color:#10B981;"></i> Export
+              </button>
             </div>
           </div>
 
@@ -1109,6 +1113,80 @@ async function deleteRecord(id) {
     showToast('Deleted!', 'warning');
     loadHistory();
   } catch(e) { showToast('Failed: '+e.message, 'error'); }
+}
+
+// ── EXPORT HISTORY TO EXCEL ──
+function exportHistoryExcel() {
+  if (!currentHistoryData.length) { showToast('No data to export', 'warning'); return; }
+
+  let ws, filename;
+
+  if (historyTabMode === 'detailed') {
+    // ── Detailed export — one row per agent per day ──
+    const headers = ['Date', 'Agent', 'Active Time', 'Conformance %', 'Missing', 'Calls', 'Avg AHT'];
+    const rows = currentHistoryData.map(r => {
+      const conf = parseFloat(r.conformance || 0);
+      const missingDisplay = (r.missing_sec || 0) <= 300 ? 'Full Time' : secToTime(r.missing_sec);
+      return [
+        r.perf_date,
+        r.agent_name,
+        secToTime(r.active_sec),
+        conf.toFixed(0) + '%',
+        missingDisplay,
+        r.calls || 0,
+        r.avg_aht ? secToTime(r.avg_aht) : '—',
+      ];
+    });
+    ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [{wch:14},{wch:24},{wch:14},{wch:16},{wch:14},{wch:10},{wch:12}];
+    filename = `xcally-detailed-${new Date().toISOString().slice(0,10)}.xlsx`;
+
+  } else {
+    // ── Summary export — one row per agent (aggregated) ──
+    const agentMap = {};
+    currentHistoryData.forEach(r => {
+      const name = r.agent_name;
+      if (!agentMap[name]) agentMap[name] = {
+        name, days:0, totalMissing:0, totalExtra:0,
+        totalCalls:0, totalTalk:0, confSum:0, below98:0
+      };
+      const a = agentMap[name];
+      a.days++;
+      a.totalMissing += r.missing_sec || 0;
+      a.totalExtra   += Math.max(0, (r.active_sec || 0) - (r.target_sec || 0));
+      a.totalCalls   += r.calls    || 0;
+      a.totalTalk    += r.talk_sec || 0;
+      a.confSum      += parseFloat(r.conformance || 0);
+      if (parseFloat(r.conformance || 0) < 98) a.below98++;
+    });
+
+    const rows = Object.values(agentMap)
+      .sort((a,b) => b.confSum/b.days - a.confSum/a.days)
+      .map(a => {
+        const avgConf    = a.days > 0 ? a.confSum / a.days : 0;
+        const avgAHT     = a.totalCalls > 0 ? Math.round(a.totalTalk / a.totalCalls) : 0;
+        const netMissing = Math.max(0, a.totalMissing - a.totalExtra);
+        return [
+          a.name,
+          a.days,
+          avgConf.toFixed(0) + '%',
+          netMissing <= 300 ? 'Full Time' : secToTime(netMissing),
+          a.totalCalls,
+          avgAHT ? secToTime(avgAHT) : '—',
+          a.below98,
+        ];
+      });
+
+    const headers = ['Agent', 'Days Active', 'Avg Conformance', 'Net Missing', 'Total Calls', 'Avg AHT', 'Days Below 98%'];
+    ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [{wch:24},{wch:12},{wch:18},{wch:14},{wch:13},{wch:12},{wch:16}];
+    filename = `xcally-summary-${new Date().toISOString().slice(0,10)}.xlsx`;
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, historyTabMode === 'detailed' ? 'Detailed' : 'Summary');
+  XLSX.writeFile(wb, filename);
+  showToast('✅ Export complete', 'success');
 }
 
 function setStep(n) {
