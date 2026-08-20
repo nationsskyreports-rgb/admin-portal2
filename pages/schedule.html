@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 .sched-table { width:100%; border-collapse:collapse; font-size:12px; }
 .sched-table th {
@@ -156,7 +157,8 @@ html.light .shift-select.is-shift-night     { color:#fff; }
         <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Weekly Management</div>
       </div>
       <div class="topbar-right">
-        <button class="btn btn-ghost" onclick="exportToExcel()"><i class="fas fa-file-excel"></i> Export</button>
+        <button class="btn btn-ghost" onclick="exportToExcel()"><i class="fas fa-file-excel"></i> Export Week</button>
+        <button class="btn btn-ghost" onclick="exportAllSchedule()" id="export-all-btn"><i class="fas fa-file-excel" style="color:#10B981;"></i> Export All</button>
         <button class="btn btn-ghost" onclick="openShiftTypesPanel()"><i class="fas fa-sliders-h"></i> Shift Types</button>
         <button class="btn btn-ghost" onclick="openTemplatePanel()"><i class="fas fa-clone"></i> Templates</button>
         <button class="btn btn-primary" onclick="openNewWeekPanel()"><i class="fas fa-plus"></i> New Week</button>
@@ -1260,6 +1262,79 @@ function exportToExcel() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('Schedule exported!', 'success');
+}
+
+// ── EXPORT FULL SCHEDULE (all weeks) ──
+async function exportAllSchedule() {
+  const btn = document.getElementById('export-all-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+
+  try {
+    // Fetch all schedule rows in one call
+    const { data: rows, error } = await db
+      .from('schedule')
+      .select('agent_id, shift_date, day_type, shift_type_id, channel')
+      .order('shift_date', { ascending: true });
+
+    if (error) throw error;
+    if (!rows || !rows.length) { showToast('No schedule data found', 'warning'); return; }
+
+    // ── Sheet 1: Full Detail ──
+    const detailHeaders = ['Date', 'Day', 'Agent', 'Day Type', 'Shift', 'Channel'];
+    const detailRows = rows.map(r => {
+      const agent = allAgents.find(a => a.id === r.agent_id);
+      const st    = allShiftTypes.find(s => s.id === r.shift_type_id);
+      const dt    = new Date(r.shift_date + 'T00:00:00');
+      const day   = dt.toLocaleDateString('en-GB', { weekday: 'short' });
+      const shift = (r.day_type === 'Work' && st)
+        ? st.start_time.substring(0,5) + '-' + st.end_time.substring(0,5)
+        : '—';
+      return [
+        r.shift_date,
+        day,
+        agent ? agent.formal_name : r.agent_id,
+        r.day_type,
+        shift,
+        r.day_type === 'Work' ? (r.channel || 'Calls') : '—',
+      ];
+    });
+
+    const wsDetail = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
+    wsDetail['!cols'] = [{wch:13},{wch:6},{wch:24},{wch:12},{wch:13},{wch:12}];
+
+    // ── Sheet 2: Summary per agent ──
+    const agentMap = {};
+    rows.forEach(r => {
+      const agent = allAgents.find(a => a.id === r.agent_id);
+      const name  = agent ? agent.formal_name : r.agent_id;
+      if (!agentMap[name]) agentMap[name] = { name, Work:0, Off:0, Annual:0, Casual:0, Sick:0, Other:0 };
+      const bucket = ['Work','Off','Annual','Casual','Sick'].includes(r.day_type) ? r.day_type : 'Other';
+      agentMap[name][bucket]++;
+    });
+    const summaryHeaders = ['Agent', 'Work Days', 'Off Days', 'Annual Leave', 'Casual Leave', 'Sick Leave', 'Other'];
+    const summaryRows    = Object.values(agentMap)
+      .sort((a,b) => a.name.localeCompare(b.name))
+      .map(a => [a.name, a.Work, a.Off, a.Annual, a.Casual, a.Sick, a.Other]);
+
+    const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+    wsSummary['!cols'] = [{wch:24},{wch:11},{wch:10},{wch:14},{wch:14},{wch:12},{wch:8}];
+
+    // ── Build workbook ──
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsDetail,  'Full Schedule');
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Agent Summary');
+
+    const today = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `schedule-full-${today}.xlsx`);
+    showToast('✅ Full schedule exported!', 'success');
+
+  } catch(e) {
+    showToast('Export failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-file-excel" style="color:#10B981;"></i> Export All';
+  }
 }
 
 function openTemplatePanel() {
