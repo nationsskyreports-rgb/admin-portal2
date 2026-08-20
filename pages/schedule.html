@@ -1197,9 +1197,54 @@ function closeModal(){document.getElementById('modal-overlay').classList.remove(
 function openPanel(){document.getElementById('panel-overlay').classList.add('open');document.getElementById('slide-panel').classList.add('open');}
 function closePanel(){document.getElementById('panel-overlay').classList.remove('open');document.getElementById('slide-panel').classList.remove('open');}
 
-function exportToExcel() {
-  if (!currentWeek) { showToast('Select a week first', 'error'); return; }
-  const dates = getWeekDates(currentWeek.week_start, currentWeek.week_end);
+// ── WEEK PICKER FOR EXPORT ──
+function openExportWeekPanel() {
+  if (!allWeeks.length) { showToast('No weeks available', 'warning'); return; }
+
+  // Group by year
+  const byYear = {};
+  allWeeks.forEach(w => {
+    const y = w.week_start.substring(0,4);
+    if (!byYear[y]) byYear[y] = [];
+    byYear[y].push(w);
+  });
+
+  const yearsHtml = Object.keys(byYear).sort().reverse().map(year => `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">${year}</div>
+      ${byYear[year].map(w => {
+        const isCurrent = currentWeek && currentWeek.id === w.id;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;margin-bottom:6px;background:var(--surface2);border:1px solid ${isCurrent?'var(--gold)':'var(--border)'};">
+          <div>
+            <div style="font-weight:700;font-size:13px;">${formatDateShort(w.week_start)} → ${formatDateShort(w.week_end)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+              <span class="badge ${w.status==='Published'?'badge-success':'badge-warning'}" style="font-size:10px;">${w.status}</span>
+              ${isCurrent ? '<span style="color:var(--gold);margin-left:6px;font-size:10px;">● Current</span>' : ''}
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="closePanel();exportToExcel(allWeeks.find(x=>x.id==='${w.id}'))" style="gap:5px;">
+            <i class="fas fa-file-excel" style="color:#10B981;"></i> Export
+          </button>
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+
+  document.getElementById('panel-title').innerText = 'Export Week';
+  document.getElementById('panel-body').innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">اختار الويك اللي عايز تعمله export</div>
+    ${yearsHtml}
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-ghost" onclick="closePanel()">Cancel</button>
+    </div>
+  `;
+  openPanel();
+}
+
+function exportToExcel(weekOverride) {
+  const week = weekOverride || currentWeek;
+  if (!week) { openExportWeekPanel(); return; }
+  const dates = getWeekDates(week.week_start, week.week_end);
 
   // ── Table 1: Main Schedule ──
   let csv = 'SCHEDULE\n';
@@ -1258,7 +1303,7 @@ function exportToExcel() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url;
-  a.download = 'Schedule_' + currentWeek.week_start + '.csv';
+  a.download = 'Schedule_' + week.week_start + '.csv';
   a.click();
   URL.revokeObjectURL(url);
   showToast('Schedule exported!', 'success');
