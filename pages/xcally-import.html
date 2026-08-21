@@ -602,6 +602,7 @@ function processData() {
       if (!byDay[date][agentName]) byDay[date][agentName] = {
         sessions: [], talkSec: 0, calls: 0, callsList: [], auxes: {},
         loginSec: null, break1Sec: null, lunchSec: null, break2Sec: null,
+        personalBreakSec: 0, workPauseSec: 0,   // ← NEW: durations for adherence
       };
 
       if (exitSec > enterSec) byDay[date][agentName].sessions.push([enterSec, exitSec]);
@@ -614,6 +615,18 @@ function processData() {
       if (evtEvent === 'PAUSE' && eventType === 'break 1'  && d.break1Sec === null) d.break1Sec = enterSec;
       if (evtEvent === 'PAUSE' && eventType === 'lunch'    && d.lunchSec  === null) d.lunchSec  = enterSec;
       if (evtEvent === 'PAUSE' && eventType === 'break 2'  && d.break2Sec === null) d.break2Sec = enterSec;
+
+      // ── NEW: accumulate personal-break & work-pause DURATIONS (duration-based adherence) ──
+      // Personal breaks count against the 1h allowance; work pauses (BACKOFFICE/ACW) do not.
+      if (evtEvent === 'PAUSE') {
+        const PERSONAL_PAUSE = ['break 1', 'break 2', 'lunch', 'wc'];
+        const WORK_PAUSE     = ['backoffice', 'acw'];
+        const pdur = timeToSec(duration);
+        if (pdur > 0) {
+          if (PERSONAL_PAUSE.includes(eventType))  d.personalBreakSec = (d.personalBreakSec || 0) + pdur;
+          else if (WORK_PAUSE.includes(eventType)) d.workPauseSec     = (d.workPauseSec     || 0) + pdur;
+        }
+      }
 
       // ── Capture non-break AUX durations ──
       const BREAK_TYPES = ['break 1','lunch','break 2','inbound','universalbar','login','logout',''];
@@ -851,6 +864,8 @@ async function saveAll() {
           actual_break1: d.break1Sec    != null ? applyOffset(secToTimeStr(d.break1Sec))    : null,
           actual_lunch:  d.lunchSec     != null ? applyOffset(secToTimeStr(d.lunchSec))     : null,
           actual_break2: d.break2Sec    != null ? applyOffset(secToTimeStr(d.break2Sec))    : null,
+          personal_break_sec: d.personalBreakSec || 0,   // ← NEW
+          work_pause_sec:     d.workPauseSec     || 0,   // ← NEW
           updated_at:    new Date().toISOString(),
         });
       });
