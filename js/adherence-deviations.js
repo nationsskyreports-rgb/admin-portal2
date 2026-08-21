@@ -589,7 +589,7 @@ async function runAutoCheck() {
         .select('agent_id, perf_date, login_time, logout_time, actual_break1, actual_lunch, actual_break2')
         .gte('perf_date', from).lte('perf_date', to),
       db.from('adherence_deviations')
-        .select('agent_id, deviation_date, deviation_type, scheduled_value')
+        .select('agent_id, deviation_date, deviation_type, scheduled_value, deviation_slot')
         .gte('deviation_date', from).lte('deviation_date', to),
     ]);
 
@@ -607,12 +607,16 @@ async function runAutoCheck() {
       perfMap[p.agent_id + '_' + p.perf_date] = adjusted;
     });
 
-    // Key includes scheduled_value so break1 / lunch / break2 are tracked separately
-    // (prev bug: all three shared agentId_date_Long Break → only first was logged)
+    // Dedup on a STABLE slot (login/break1/lunch/break2/logout) — NOT scheduled_value.
+    // Scheduled times drift when schedules/breaks are re-published; keying on them
+    // used to resurrect already-waived deviations after every re-import. Slot is stable.
+    // Waived rows ARE included here, so a waive blocks re-creation for that agent+date+slot.
+    const slotOf = d => d.deviation_slot
+      || (d.deviation_type === 'Late Login'   ? 'login'
+        : d.deviation_type === 'Early Logout' ? 'logout'
+        : 'break:' + (d.scheduled_value || ''));   // legacy fallback for un-backfilled rows
     const existingSet = new Set(
-      (existingDevs || []).map(d =>
-        `${d.agent_id}_${d.deviation_date}_${d.deviation_type}_${d.scheduled_value || ''}`
-      )
+      (existingDevs || []).map(d => `${d.agent_id}_${d.deviation_date}_${slotOf(d)}`)
     );
 
     const timeDiff = (ref, actual) => {
@@ -641,26 +645,26 @@ async function runAutoCheck() {
       const agentName = agent?.formal_name || agentId;
 
       const checks = [
-        { type: 'Late Login',    ref: shift.start, actual: perf.login_time,    tol: TOL_LOGIN, invert: false,
+        { type: 'Late Login',    slot: 'login',  ref: shift.start, actual: perf.login_time,    tol: TOL_LOGIN, invert: false,
           sched: shift.start,                       act: perf.login_time?.substring(0,5) },
-        { type: 'Long Break',    ref: b.break1,    actual: perf.actual_break1, tol: TOL_BRK,   invert: false,
+        { type: 'Long Break',    slot: 'break1', ref: b.break1,    actual: perf.actual_break1, tol: TOL_BRK,   invert: false,
           sched: b.break1?.substring(0,5),          act: perf.actual_break1?.substring(0,5) },
-        { type: 'Long Break',    ref: b.lunch,     actual: perf.actual_lunch,  tol: TOL_BRK,   invert: false,
+        { type: 'Long Break',    slot: 'lunch',  ref: b.lunch,     actual: perf.actual_lunch,  tol: TOL_BRK,   invert: false,
           sched: b.lunch?.substring(0,5),           act: perf.actual_lunch?.substring(0,5) },
-        { type: 'Long Break',    ref: b.break2,    actual: perf.actual_break2, tol: TOL_BRK,   invert: false,
+        { type: 'Long Break',    slot: 'break2', ref: b.break2,    actual: perf.actual_break2, tol: TOL_BRK,   invert: false,
           sched: b.break2?.substring(0,5),          act: perf.actual_break2?.substring(0,5) },
-        { type: 'Early Logout',  ref: shift.end,   actual: perf.logout_time,   tol: TOL_LOGIN, invert: true,
+        { type: 'Early Logout',  slot: 'logout', ref: shift.end,   actual: perf.logout_time,   tol: TOL_LOGIN, invert: true,
           sched: shift.end,                         act: perf.logout_time?.substring(0,5) },
       ];
 
-      checks.forEach(({ type, ref, actual, tol, sched, act, invert }) => {
+      checks.forEach(({ type, slot, ref, actual, tol, sched, act, invert }) => {
         const diff = timeDiff(ref, actual);
         if (diff === null) return;
         const isViolation = invert ? diff < -tol : diff > tol;
         if (!isViolation) return;
 
-        // sched included in key → break1 / lunch / break2 each logged independently
-        const devKey = `${agentId}_${date}_${type}_${sched || ''}`;
+        // STABLE slot key → survives scheduled-time changes; waived rows block re-creation
+        const devKey = `${agentId}_${date}_${slot}`;
         if (existingSet.has(devKey)) return;
         existingSet.add(devKey);
 
@@ -673,6 +677,7 @@ async function runAutoCheck() {
           actual_value:      act   || '—',
           deviation_minutes: Math.abs(diff),
           notes:             `Auto: ${sched} → ${act} (${diff > 0 ? '+' : ''}${diff} min)`,
+          deviation_slot:    slot,
           source:            'Auto',
           created_by:        createdBy,
           is_waived:         false,
