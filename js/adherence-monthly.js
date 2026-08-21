@@ -187,7 +187,7 @@ async function loadMonthlyAdherence() {
 
     // 4. Approved excuses (reduce target — 2h each, matches Excuses page)
     const { data: excuses, error: excErr } = await db.from('excuses')
-      .select('agent_id, excuse_date, status')
+      .select('agent_id, agent_name, excuse_date, status')
       .eq('status', 'Approved')
       .gte('excuse_date', monthStart)
       .lte('excuse_date', monthEnd);
@@ -200,10 +200,12 @@ async function loadMonthlyAdherence() {
     const brkMap = {};
     (breaks || []).forEach(b => { brkMap[b.agent_id + '_' + b.break_date] = b; });
 
-    const excMap = {}; // "agentId_date" → count of approved excuses
+    // Match excuses by agent_id OR agent_name (some rows may lack one) — robust auto-read
+    const excMap = {};
+    const bump = k => { if (k) excMap[k] = (excMap[k] || 0) + 1; };
     (excuses || []).forEach(e => {
-      const k = e.agent_id + '_' + e.excuse_date;
-      excMap[k] = (excMap[k] || 0) + 1;
+      if (e.agent_id)   bump('id:'   + e.agent_id + '_' + e.excuse_date);
+      if (e.agent_name) bump('name:' + e.agent_name.toLowerCase().trim() + '_' + e.excuse_date);
     });
 
     // time-adjust offset (applies only to clock-time fields, not durations)
@@ -248,7 +250,9 @@ async function loadMonthlyAdherence() {
 
       // ---- target (duration-based) ----
       const rawShift = shiftLenSec(shiftInfo?.start_time, shiftInfo?.end_time) || 28800;
-      const excCount = excMap[s.agent_id + '_' + s.shift_date] || 0;
+      const excCount = excMap['id:' + s.agent_id + '_' + s.shift_date]
+                    || excMap['name:' + (agent.formal_name || '').toLowerCase().trim() + '_' + s.shift_date]
+                    || 0;
       const excSec   = Math.min(rawShift, excCount * EXCUSE_SEC);
       const target   = Math.max(0, rawShift - excSec);
 
