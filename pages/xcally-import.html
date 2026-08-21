@@ -602,7 +602,7 @@ function processData() {
       if (!byDay[date][agentName]) byDay[date][agentName] = {
         sessions: [], talkSec: 0, calls: 0, callsList: [], auxes: {},
         loginSec: null, break1Sec: null, lunchSec: null, break2Sec: null,
-        personalBreakSec: 0, workPauseSec: 0,   // ← NEW: durations for adherence
+        personalBreakSec: 0, workPauseSec: 0, wcSec: 0,   // ← NEW: durations for adherence
       };
 
       if (exitSec > enterSec) byDay[date][agentName].sessions.push([enterSec, exitSec]);
@@ -625,6 +625,7 @@ function processData() {
         if (pdur > 0) {
           if (PERSONAL_PAUSE.includes(eventType))  d.personalBreakSec = (d.personalBreakSec || 0) + pdur;
           else if (WORK_PAUSE.includes(eventType)) d.workPauseSec     = (d.workPauseSec     || 0) + pdur;
+          if (eventType === 'wc')                  d.wcSec            = (d.wcSec            || 0) + pdur;
         }
       }
 
@@ -866,6 +867,7 @@ async function saveAll() {
           actual_break2: d.break2Sec    != null ? applyOffset(secToTimeStr(d.break2Sec))    : null,
           personal_break_sec: d.personalBreakSec || 0,   // ← NEW
           work_pause_sec:     d.workPauseSec     || 0,   // ← NEW
+          wc_sec:             d.wcSec            || 0,   // ← NEW (15-min sub-cap)
           updated_at:    new Date().toISOString(),
         });
       });
