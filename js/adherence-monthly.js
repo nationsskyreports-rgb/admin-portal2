@@ -14,7 +14,8 @@
 ══════════════════════════════════════════════════════════════ */
 
 // ── Config ──
-const ALLOWANCE_SEC = 3600;   // 1 hour paid personal-break allowance per day
+const ALLOWANCE_SEC = 3600;   // 1 hour paid personal-break allowance per day (all breaks pooled)
+const WC_CAP_SEC    = 900;    // WC (bathroom) hard sub-cap: 15 min. Excess deducted on top of the pool.
 const EXCUSE_SEC     = 7200;  // each approved excuse deducts 2h from target (matches Excuses page)
 
 // ── Module-level cache for export ──
@@ -177,7 +178,7 @@ async function loadMonthlyAdherence() {
 
     // 3. Daily performance (login duration + personal-break duration + break start times)
     let perfQ = db.from('daily_performance')
-      .select('agent_id, perf_date, active_sec, personal_break_sec, login_time, actual_break1, actual_lunch, actual_break2')
+      .select('agent_id, perf_date, active_sec, personal_break_sec, wc_sec, login_time, actual_break1, actual_lunch, actual_break2')
       .gte('perf_date', monthStart)
       .lte('perf_date', monthEnd);
     if (agentFilt) perfQ = perfQ.eq('agent_id', agentFilt);
@@ -223,6 +224,7 @@ async function loadMonthlyAdherence() {
       perfMap[p.agent_id + '_' + p.perf_date] = {
         active_sec:         p.active_sec,
         personal_break_sec: p.personal_break_sec,
+        wc_sec:             p.wc_sec,
         login_time:    adjT(p.login_time),
         actual_break1: adjT(p.actual_break1),
         actual_lunch:  adjT(p.actual_lunch),
@@ -253,16 +255,24 @@ async function loadMonthlyAdherence() {
       // ---- actuals ----
       const hasPerf  = perf && perf.active_sec != null;
       const login    = hasPerf ? perf.active_sec : null;
-      const personal = hasPerf ? (perf.personal_break_sec || 0) : 0;
+      const personal = hasPerf ? (perf.personal_break_sec || 0) : 0;   // all four breaks incl WC
+      const wc       = hasPerf ? (perf.wc_sec || 0) : 0;
 
-      // ---- duration-based adherence ----
-      let adherentSec = null, adherencePct = null, notLoggedIn = 0, overrun = 0;
+      // ---- duration-based adherence (with WC 15-min sub-cap) ----
+      // Pool = Break1 + Break2 + Lunch + min(WC, 15m), against the 1h allowance.
+      // WC beyond 15m is a hard overrun on top of the pool (penalised even if pool < 1h).
+      let adherentSec = null, adherencePct = null, notLoggedIn = 0, overrun = 0, wcExcess = 0;
       if (hasPerf && target > 0) {
-        notLoggedIn = Math.max(0, target - login);
-        const extra = Math.max(0, login - target);
-        overrun     = Math.max(0, personal - ALLOWANCE_SEC - extra);
-        adherentSec = target - notLoggedIn - overrun;
-        adherencePct = (adherentSec / target) * 100;
+        notLoggedIn      = Math.max(0, target - login);
+        const extra      = Math.max(0, login - target);
+        const nonWC      = Math.max(0, personal - wc);
+        const wcCounted  = Math.min(wc, WC_CAP_SEC);
+        wcExcess         = Math.max(0, wc - WC_CAP_SEC);
+        const pool       = nonWC + wcCounted;
+        const poolOver   = Math.max(0, pool - ALLOWANCE_SEC);
+        overrun          = Math.max(0, poolOver + wcExcess - extra);
+        adherentSec      = target - notLoggedIn - overrun;
+        adherencePct     = (adherentSec / target) * 100;
       }
 
       // ---- secondary clean-day (punctuality) ----
