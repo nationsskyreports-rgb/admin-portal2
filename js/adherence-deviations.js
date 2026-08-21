@@ -581,7 +581,7 @@ async function runAutoCheck() {
     // Get date range from current filter
     const { from, to } = getDateRange();
 
-    const [{ data: brkData }, { data: perfData }, { data: existingDevs }] = await Promise.all([
+    const [{ data: brkData }, { data: perfData }, { data: existingDevs }, { data: excuseData }] = await Promise.all([
       db.from('breaks')
         .select('agent_id, break_date, shift_time, break1, lunch, break2')
         .gte('break_date', from).lte('break_date', to),
@@ -591,7 +591,26 @@ async function runAutoCheck() {
       db.from('adherence_deviations')
         .select('agent_id, deviation_date, deviation_type, scheduled_value, deviation_slot')
         .gte('deviation_date', from).lte('deviation_date', to),
+      db.from('excuses')
+        .select('agent_id, agent_name, excuse_date, excuse_type, status')
+        .eq('status', 'Approved')
+        .gte('excuse_date', from).lte('excuse_date', to),
     ]);
+
+    // ── Approved excuses → auto-waive matching deviations at creation time ──
+    // 'Arrive Late' covers a Late Login; 'Leave Early' covers an Early Logout.
+    // Matches by agent_id OR agent_name so it works regardless of import order.
+    const excType2Dev = { 'Arrive Late': 'Late Login', 'Leave Early': 'Early Logout' };
+    const excuseWaiveSet = new Set();
+    (excuseData || []).forEach(e => {
+      const devType = excType2Dev[e.excuse_type];
+      if (!devType) return;
+      if (e.agent_id)   excuseWaiveSet.add('id:'   + e.agent_id + '_' + e.excuse_date + '_' + devType);
+      if (e.agent_name) excuseWaiveSet.add('name:' + e.agent_name.toLowerCase().trim() + '_' + e.excuse_date + '_' + devType);
+    });
+    const isExcused = (aid, aname, d, type) =>
+      excuseWaiveSet.has('id:' + aid + '_' + d + '_' + type) ||
+      excuseWaiveSet.has('name:' + (aname || '').toLowerCase().trim() + '_' + d + '_' + type);
 
     const perfMap = {};
     const offsetHours = getHourOffset();
@@ -668,6 +687,7 @@ async function runAutoCheck() {
         if (existingSet.has(devKey)) return;
         existingSet.add(devKey);
 
+        const excused = isExcused(agentId, agentName, date, type);
         toInsert.push({
           agent_id:          agentId,
           agent_name:        agentName,
@@ -680,7 +700,10 @@ async function runAutoCheck() {
           deviation_slot:    slot,
           source:            'Auto',
           created_by:        createdBy,
-          is_waived:         false,
+          is_waived:         excused,
+          waived_by:         excused ? 'Auto-Excuse' : null,
+          waived_at:         excused ? new Date().toISOString() : null,
+          waive_reason:      excused ? 'Auto-waived: approved excuse' : null,
         });
       });
     });
