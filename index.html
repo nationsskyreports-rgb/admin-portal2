@@ -368,9 +368,8 @@ async function loadKPIs() {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'Pending');
     document.getElementById('kpi-requests').innerText = pending || 0;
-    // Check if element exists before setting to avoid error
-    const badge = document.getElementById('pending-count');
-    if(badge) badge.innerText = pending || 0;
+    // Sidebar badge is owned by ui.js (unread count via last-seen). Only the KPI card here.
+    if (typeof refreshRequestsBadge === 'function') refreshRequestsBadge();
 
     // This week shifts
     const weekStart = getWeekStart();
