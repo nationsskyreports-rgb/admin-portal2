@@ -222,3 +222,34 @@ function getWeekEnd() {
 function getToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
 }
+
+
+// ═══════════════════════════════════════════
+// NOS Admin — Requests "unread" notification badge
+// localStorage-based (no schema change): badge = requests created after last-seen.
+// ═══════════════════════════════════════════
+const REQ_SEEN_KEY = 'nos_req_seen_at';
+
+async function refreshRequestsBadge() {
+  const badge = document.getElementById('pending-count');
+  if (!badge || typeof db === 'undefined') return;
+  try {
+    const seen = localStorage.getItem(REQ_SEEN_KEY) || '1970-01-01T00:00:00Z';
+    const { count } = await db.from('requests')
+      .select('*', { count: 'exact', head: true })
+      .gt('created_at', seen);
+    const n = count || 0;
+    badge.innerText = n;
+    badge.style.display = n > 0 ? '' : 'none';
+  } catch (e) { /* silent — badge stays as-is */ }
+}
+
+// Mark every request seen up to now → clears the badge.
+async function markAllRequestsRead() {
+  localStorage.setItem(REQ_SEEN_KEY, new Date().toISOString());
+  await refreshRequestsBadge();
+  if (typeof showToast === 'function') showToast('All requests marked as read ✅', 'success');
+}
+
+// Auto-refresh the badge shortly after each page renders the sidebar.
+document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshRequestsBadge, 400); });
