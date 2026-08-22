@@ -121,6 +121,9 @@
         </div>
       </div>
       <div class="topbar-right">
+        <button class="btn btn-ghost" onclick="markAllRequestsRead()" title="Clear the notification badge">
+          <i class="fas fa-check-double"></i> Mark all read
+        </button>
         <button class="btn btn-ghost" onclick="loadRequests()">
           <i class="fas fa-sync-alt"></i> Refresh
         </button>
@@ -154,6 +157,7 @@
 
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <div class="filter-chip active" onclick="setTypeFilter('',this)">All</div>
+              <div class="filter-chip" onclick="setTypeFilter('Waiving Request',this)" style="border-color:rgba(212,175,55,0.4);color:var(--gold);font-weight:700;">🙌 Waiving <span id="waive-count" class="badge badge-warning" style="margin-right:4px;">0</span></div>
               <div class="filter-chip" onclick="setTypeFilter('Excuse',this)">⚠️ Excuse</div>
               <div class="filter-chip" onclick="setTypeFilter('Time Off',this)">🏖️ Time Off</div>
               <div class="filter-chip" onclick="setTypeFilter('Missing Punch',this)">👆 Missing Punch</div>
@@ -229,6 +233,7 @@ const TYPE_CONFIG = {
   'Shift Swap':       { icon:'🔄',  color:'rgba(59,130,246,0.1)',  border:'rgba(59,130,246,0.2)',  page:'../pages/requests.html', label:'Go to Page' },
   'Schedule Request': { icon:'📅',  color:'rgba(212,175,55,0.1)',  border:'rgba(212,175,55,0.2)',  page:'../pages/schedule.html', label:'Schedule' },
   'Break Change':     { icon:'☕',  color:'rgba(16,185,129,0.1)',  border:'rgba(16,185,129,0.2)',  page:'../pages/breaks.html',   label:'Breaks' },
+  'Waiving Request':  { icon:'🙌',  color:'rgba(212,175,55,0.14)', border:'rgba(212,175,55,0.30)', page:'../pages/adherence.html', label:'Adherence' },
 };
 
 const DEFAULT_CONFIG = { icon:'📄', color:'rgba(107,122,153,0.1)', border:'rgba(107,122,153,0.2)', page:'#', label:'View' };
@@ -252,6 +257,8 @@ function updateKPIs() {
   document.getElementById('k-total').innerText    = allRequests.length;
   document.getElementById('k-pending').innerText  = allRequests.filter(r=>r.status==='Pending').length;
   document.getElementById('k-approved').innerText = allRequests.filter(r=>r.status==='Approved').length;
+  const wc = document.getElementById('waive-count');
+  if (wc) { const n = allRequests.filter(r=>r.type==='Waiving Request' && r.status==='Pending').length; wc.innerText = n; wc.style.display = n>0?'':'none'; }
   document.getElementById('k-rejected').innerText = allRequests.filter(r=>r.status==='Rejected').length;
   document.getElementById('k-today').innerText    = allRequests.filter(r=>r.created_at?.startsWith(TODAY)).length;
 }
@@ -389,8 +396,38 @@ document.getElementById('panel-footer').innerHTML = `
 }
 
 async function approveRequest(id) {
+  const req = (allRequests || []).find(r => String(r.id) === String(id));
+
+  // Waiving Request → auto-waive the matching deviation(s) for that agent/date/type
+  if (req && req.type === 'Waiving Request') {
+    try {
+      const d = typeof req.details === 'string' ? JSON.parse(req.details) : (req.details || {});
+      const devType = d.deviation_type, date = d.date;
+      if (!devType || !date) { showToast('Request missing date/type — cannot auto-waive', 'error'); return; }
+      const session   = (typeof getSession === 'function') ? getSession() : null;
+      const adminName = (session && session.username) || 'Admin';
+      const { data: waived, error } = await db.from('adherence_deviations')
+        .update({
+          is_waived:    true,
+          waived_by:    adminName,
+          waived_at:    new Date().toISOString(),
+          waive_reason: 'Agent request: ' + (d.reason || 'approved waiving request'),
+        })
+        .eq('agent_id', req.agent_id)
+        .eq('deviation_date', date)
+        .eq('deviation_type', devType)
+        .eq('is_waived', false)
+        .select('id');
+      if (error) throw error;
+      const n = (waived || []).length;
+      if (!n) showToast('Approved — but no matching active deviation found for that date/type', 'warning');
+      else    showToast(`✅ Approved & waived ${n} deviation${n>1?'s':''}`, 'success');
+    } catch (e) { showToast('Auto-waive failed: ' + e.message, 'error'); return; }
+  } else {
+    showToast('✅ Request Approved!', 'success');
+  }
+
   await db.from('requests').update({ status:'Approved', updated_at: new Date().toISOString() }).eq('id', id);
-  showToast('✅ Request Approved!', 'success');
   closePanel();
   loadRequests();
 }
@@ -413,6 +450,7 @@ if (r.type === 'Missing Punch')    return `Date: ${d.date||''}`;
 if (r.type === 'Shift Swap')       return `${d.date||''} · with ${d.colleague||''}`;
 if (r.type === 'Break Change')     return `${d.break_type||''} → ${d.requested_time||''}`;
 if (r.type === 'Schedule Request') return `Week: ${d.week_start||''}`;
+if (r.type === 'Waiving Request')  return `${d.deviation_type||''} · ${d.date||''}`;
     
     return '—';
   } catch { return '—'; }
