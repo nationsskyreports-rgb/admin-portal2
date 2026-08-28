@@ -589,7 +589,7 @@ async function runAutoCheck() {
         .select('agent_id, perf_date, login_time, logout_time, actual_break1, actual_lunch, actual_break2')
         .gte('perf_date', from).lte('perf_date', to),
       db.from('adherence_deviations')
-        .select('agent_id, deviation_date, deviation_type, scheduled_value, deviation_slot')
+        .select('id, agent_id, deviation_date, deviation_type, scheduled_value, actual_value, deviation_minutes, deviation_slot, is_waived')
         .gte('deviation_date', from).lte('deviation_date', to),
       db.from('excuses')
         .select('agent_id, agent_name, excuse_date, excuse_type, status')
@@ -654,17 +654,21 @@ async function runAutoCheck() {
       perfMap[p.agent_id + '_' + p.perf_date] = adjusted;
     });
 
-    // Dedup on a STABLE slot (login/break1/lunch/break2/logout) — NOT scheduled_value.
+    // Key on a STABLE slot (login/break1/lunch/break2/logout) — NOT scheduled_value.
     // Scheduled times drift when schedules/breaks are re-published; keying on them
     // used to resurrect already-waived deviations after every re-import. Slot is stable.
-    // Waived rows ARE included here, so a waive blocks re-creation for that agent+date+slot.
     const slotOf = d => d.deviation_slot
       || (d.deviation_type === 'Late Login'   ? 'login'
         : d.deviation_type === 'Early Logout' ? 'logout'
         : 'break:' + (d.scheduled_value || ''));   // legacy fallback for un-backfilled rows
-    const existingSet = new Set(
-      (existingDevs || []).map(d => `${d.agent_id}_${d.deviation_date}_${slotOf(d)}`)
+    // Map (not just a Set) so we can tell waived vs non-waived, and refresh stale
+    // values instead of silently ignoring them when source data (e.g. a re-imported
+    // xCally day) changes after the deviation was first flagged.
+    const existingMap = new Map(
+      (existingDevs || []).map(d => [`${d.agent_id}_${d.deviation_date}_${slotOf(d)}`, d])
     );
+    const toUpdate = [];
+    const toDelete = [];
 
     const timeDiff = (ref, actual) => {
       if (!ref || !actual) return null;
@@ -711,47 +715,94 @@ async function runAutoCheck() {
 
       checks.forEach(({ type, slot, ref, actual, tol, sched, act, invert }) => {
         const diff = timeDiff(ref, actual);
-        if (diff === null) return;
-        const isViolation = invert ? diff < -tol : diff > tol;
-        if (!isViolation) return;
-
-        // STABLE slot key → survives scheduled-time changes; waived rows block re-creation
         const devKey = `${agentId}_${date}_${slot}`;
-        if (existingSet.has(devKey)) return;
-        existingSet.add(devKey);
+        const existing = existingMap.get(devKey);
+        if (diff === null) return; // no data to compare — leave any existing row untouched
+        const isViolation = invert ? diff < -tol : diff > tol;
+
+        if (!isViolation) {
+          // No longer a violation against current source data. A waived row stays
+          // (it's a documented, excused exception) — anything else is now stale
+          // and would just be a false flag, so remove it.
+          if (existing && !existing.is_waived) toDelete.push(existing.id);
+          return;
+        }
 
         const excused = isExcused(agentId, agentName, date, type);
-        toInsert.push({
-          agent_id:          agentId,
-          agent_name:        agentName,
-          deviation_date:    date,
-          deviation_type:    type,
-          scheduled_value:   sched || '—',
-          actual_value:      act   || '—',
-          deviation_minutes: Math.abs(diff),
-          notes:             `Auto: ${sched} → ${act} (${diff > 0 ? '+' : ''}${diff} min)`,
-          deviation_slot:    slot,
-          source:            'Auto',
-          created_by:        createdBy,
-          is_waived:         excused,
-          waived_by:         excused ? 'Auto-Excuse' : null,
-          waived_at:         excused ? new Date().toISOString() : null,
-          waive_reason:      excused ? 'Auto-waived: approved excuse' : null,
-        });
+
+        if (!existing) {
+          existingMap.set(devKey, {}); // reserve the slot so a later dup in this same run doesn't double-insert
+          toInsert.push({
+            agent_id:          agentId,
+            agent_name:        agentName,
+            deviation_date:    date,
+            deviation_type:    type,
+            scheduled_value:   sched || '—',
+            actual_value:      act   || '—',
+            deviation_minutes: Math.abs(diff),
+            notes:             `Auto: ${sched} → ${act} (${diff > 0 ? '+' : ''}${diff} min)`,
+            deviation_slot:    slot,
+            source:            'Auto',
+            created_by:        createdBy,
+            is_waived:         excused,
+            waived_by:         excused ? 'Auto-Excuse' : null,
+            waived_at:         excused ? new Date().toISOString() : null,
+            waive_reason:      excused ? 'Auto-waived: approved excuse' : null,
+          });
+          return;
+        }
+
+        if (existing.is_waived) return; // respect an existing waive — never resurrect/overwrite it
+
+        // Still a violation and not waived — refresh the stored values if the
+        // source data (e.g. a re-imported xCally day) has moved since it was flagged.
+        const schedStr = sched || '—', actStr = act || '—', mins = Math.abs(diff);
+        if (existing.scheduled_value !== schedStr || existing.actual_value !== actStr || existing.deviation_minutes !== mins) {
+          toUpdate.push({
+            id: existing.id,
+            scheduled_value:   schedStr,
+            actual_value:      actStr,
+            deviation_minutes: mins,
+            notes:             `Auto: ${sched} → ${act} (${diff > 0 ? '+' : ''}${diff} min)`,
+          });
+        }
       });
     });
 
-    if (!toInsert.length) {
-      showToast('✅ No new deviations found', 'success');
-    } else {
+    const parts = [];
+
+    if (toInsert.length) {
       for (let i = 0; i < toInsert.length; i += 100) {
         const { error } = await db.from('adherence_deviations').insert(toInsert.slice(i, i+100));
         if (error) throw error;
       }
       logAudit({ module: 'Adherence', action: 'INSERT', targetTable: 'adherence_deviations',
         description: `Auto-check detected & saved ${toInsert.length} deviation(s)` });
-      showToast(`⚠️ ${toInsert.length} deviation(s) detected & saved`, 'warning');
+      parts.push(`${toInsert.length} new`);
     }
+
+    if (toUpdate.length) {
+      for (const u of toUpdate) {
+        const { id, ...fields } = u;
+        const { error } = await db.from('adherence_deviations').update(fields).eq('id', id);
+        if (error) throw error;
+      }
+      logAudit({ module: 'Adherence', action: 'UPDATE', targetTable: 'adherence_deviations',
+        description: `Auto-check refreshed ${toUpdate.length} deviation(s) with updated source data` });
+      parts.push(`${toUpdate.length} refreshed`);
+    }
+
+    if (toDelete.length) {
+      for (let i = 0; i < toDelete.length; i += 100) {
+        const { error } = await db.from('adherence_deviations').delete().in('id', toDelete.slice(i, i+100));
+        if (error) throw error;
+      }
+      logAudit({ module: 'Adherence', action: 'DELETE', targetTable: 'adherence_deviations',
+        description: `Auto-check removed ${toDelete.length} stale (non-waived, no-longer-violating) deviation(s)` });
+      parts.push(`${toDelete.length} cleared`);
+    }
+
+    showToast(parts.length ? `⚠️ ${parts.join(', ')}` : '✅ No changes — everything up to date', parts.length ? 'warning' : 'success');
 
     await loadData();
 
