@@ -379,7 +379,8 @@ function viewRequest(id) {
     </div>
   `;
   
-const showActions = r.status === 'Pending' && r.type !== 'Excuse' && r.type !== 'Break Change';
+const showActions    = r.status === 'Pending' && r.type !== 'Excuse' && r.type !== 'Break Change';
+const showBrkActions = r.status === 'Pending' && r.type === 'Break Change';
 
 document.getElementById('panel-footer').innerHTML = `
     <button class="btn btn-ghost" onclick="closePanel()">Close</button>
@@ -389,6 +390,13 @@ document.getElementById('panel-footer').innerHTML = `
       </button>
       <button class="btn btn-success" onclick="approveRequest('${r.id}')">
         <i class="fas fa-check"></i> Approve
+      </button>
+    ` : showBrkActions ? `
+      <button class="btn btn-danger" onclick="rejectRequest('${r.id}')">
+        <i class="fas fa-times"></i> Reject
+      </button>
+      <button class="btn btn-success" onclick="approveRequest('${r.id}')">
+        <i class="fas fa-check"></i> Approve & Apply to Breaks
       </button>
     ` : `
       <a href="${cfg.page}" class="btn btn-primary" style="text-decoration:none;">
@@ -469,6 +477,57 @@ async function approveRequest(id) {
       const m = (alsoWaived || []).length;
       showToast(`✅ Outage logged & excused${m?` (+${m} deviation${m>1?'s':''} waived)`:''}`, 'success');
     } catch (e) { showToast('Outage processing failed: ' + e.message, 'error'); return; }
+  } else if (req && req.type === 'Break Change') {
+    // Break Change → update the breaks table so adherence reports use the new committed time
+    try {
+      const d = typeof req.details === 'string' ? JSON.parse(req.details) : (req.details || {});
+      const session   = (typeof getSession === 'function') ? getSession() : null;
+      const adminName = (session && session.username) || 'Admin';
+
+      // Determine which date this break change applies to
+      const breakDate = d.date || new Date(req.created_at)
+        .toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+
+      // Map break_type label → breaks table column
+      const colMap = { 'Break 1': 'break1', 'Lunch': 'lunch', 'Break 2': 'break2' };
+      const col    = colMap[d.break_type];
+
+      if (!col || !d.requested_time || !breakDate) {
+        showToast('⚠️ Approved — missing details to update breaks table', 'warning');
+      } else {
+        // Format to HH:MM:SS if needed
+        const newTime = d.requested_time.length === 5
+          ? d.requested_time + ':00'
+          : d.requested_time;
+
+        // Update only the changed break column for this agent on this date
+        const update = { [col]: newTime, updated_at: new Date().toISOString() };
+        const { error: brkErr } = await db.from('breaks')
+          .update(update)
+          .eq('agent_id', req.agent_id)
+          .eq('break_date', breakDate);
+
+        if (brkErr) {
+          showToast('Approved — but failed to update breaks table: ' + brkErr.message, 'warning');
+        } else {
+          // Also waive any existing deviation for this slot so it doesn't stay flagged
+          const slotMap = { 'break1': 'break1', 'lunch': 'lunch', 'break2': 'break2' };
+          await db.from('adherence_deviations')
+            .update({ is_waived: true, waived_by: adminName, waived_at: new Date().toISOString(),
+                      waive_reason: `Approved break change: ${d.break_type} → ${d.requested_time}` })
+            .eq('agent_id', req.agent_id)
+            .eq('deviation_date', breakDate)
+            .eq('deviation_slot', slotMap[col])
+            .eq('is_waived', false);
+
+          showToast(`✅ Approved & breaks updated (${d.break_type} → ${d.requested_time})`, 'success');
+          if (typeof logAudit === 'function') {
+            logAudit({ module: 'Requests', action: 'UPDATE', targetTable: 'breaks',
+              description: `Break Change approved for ${req.agent_name} on ${breakDate}: ${d.break_type} → ${d.requested_time}` });
+          }
+        }
+      }
+    } catch (e) { showToast('Break Change approval failed: ' + e.message, 'error'); return; }
   } else {
     showToast('✅ Request Approved!', 'success');
   }
