@@ -56,11 +56,12 @@ async function buildBreakOverrides(from, to, agentF) {
       try {
         const d = typeof r.details === 'string' ? JSON.parse(r.details) : (r.details || {});
         const slot = slotMap[d.break_type];
-        if (!slot || !d.requested_time) return;
+        const reqTime = d.new_time || d.requested_time; // canonical field is new_time
+        if (!slot || !reqTime) return;
         // Prefer an explicit date in the details; fall back to the created_at date in Cairo tz
         const date = d.date || new Date(r.created_at)
           .toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
-        overrides[`${r.agent_id}_${date}_${slot}`] = d.requested_time;
+        overrides[`${r.agent_id}_${date}_${slot}`] = reqTime;
       } catch(e) { /* malformed details — skip */ }
     });
   } catch(e) { /* non-critical — adherence still works without overrides */ }
