@@ -33,6 +33,40 @@ function parseShiftTime(s) {
   return { start: p[0]?.trim() || null, end: p[1]?.trim() || null };
 }
 
+/* ── Build an override map from approved Break Change requests ──
+   Key: "{agent_id}_{date}_{slot}"  →  approved requested_time string
+   slot is one of: break1 | lunch | break2
+*/
+async function buildBreakOverrides(from, to, agentF) {
+  const slotMap = { 'Break 1': 'break1', 'Lunch': 'lunch', 'Break 2': 'break2' };
+  const overrides = {};
+  try {
+    // Pull a slightly wider window so requests submitted just after midnight don't get missed
+    const fromTs = from + 'T00:00:00.000Z';
+    const toTs   = to   + 'T23:59:59.999Z';
+    let q = db.from('requests')
+      .select('agent_id, details, status, created_at')
+      .eq('type', 'Break Change')
+      .in('status', ['Approved', 'Pending'])   // Pending = auto-approved / not yet actioned
+      .gte('created_at', fromTs)
+      .lte('created_at', toTs);
+    if (agentF) q = q.eq('agent_id', agentF);
+    const { data } = await q;
+    (data || []).forEach(r => {
+      try {
+        const d = typeof r.details === 'string' ? JSON.parse(r.details) : (r.details || {});
+        const slot = slotMap[d.break_type];
+        if (!slot || !d.requested_time) return;
+        // Prefer an explicit date in the details; fall back to the created_at date in Cairo tz
+        const date = d.date || new Date(r.created_at)
+          .toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+        overrides[`${r.agent_id}_${date}_${slot}`] = d.requested_time;
+      } catch(e) { /* malformed details — skip */ }
+    });
+  } catch(e) { /* non-critical — adherence still works without overrides */ }
+  return overrides;
+}
+
 async function loadBreakChanges() {
   const from    = document.getElementById('bc-from').value;
   const to      = document.getElementById('bc-to').value;
@@ -62,6 +96,14 @@ async function loadBreakChanges() {
     if (agentF) perfQ = perfQ.eq('agent_id', agentF);
     const { data: perfData, error: perfErr } = await perfQ;
     if (perfErr) throw perfErr;
+
+    // ── FIX: fetch approved Break Change requests and build override map ──
+    const breakOverrides = await buildBreakOverrides(from, to, agentF);
+    // Returns: { "agentId_date_slot": "HH:MM" }
+    // When an agent had an approved break change, use the requested time as the reference
+    // instead of the original scheduled time from the breaks table.
+    const getRef = (agentId, date, slot, original) =>
+      breakOverrides[`${agentId}_${date}_${slot}`] || original;
 
     const perfMap = {};
     const offsetHours = (function() {
@@ -96,11 +138,16 @@ async function loadBreakChanges() {
       const shift = parseShiftTime(b.shift_time);
       const name  = b.agents?.formal_name || '—';
 
+      // Use approved break change times as reference when available
+      const b1Ref    = getRef(b.agent_id, b.break_date, 'break1', b.break1);
+      const lunchRef = getRef(b.agent_id, b.break_date, 'lunch',  b.lunch);
+      const b2Ref    = getRef(b.agent_id, b.break_date, 'break2', b.break2);
+
       const loginDiff  = bcTimeDiff(shift.start,  perf.login_time);
       const logoutDiff = bcTimeDiff(shift.end,     perf.logout_time);
-      const b1Diff     = bcTimeDiff(b.break1,      perf.actual_break1);
-      const lunchDiff  = bcTimeDiff(b.lunch,       perf.actual_lunch);
-      const b2Diff     = bcTimeDiff(b.break2,      perf.actual_break2);
+      const b1Diff     = bcTimeDiff(b1Ref,         perf.actual_break1);
+      const lunchDiff  = bcTimeDiff(lunchRef,      perf.actual_lunch);
+      const b2Diff     = bcTimeDiff(b2Ref,         perf.actual_break2);
 
       // Consistent with monthly adherence: late login, late breaks, early logout
       const isLate = [
@@ -114,9 +161,9 @@ async function loadBreakChanges() {
       rows.push({ agentId: b.agent_id, agent: name, date: b.break_date, shift: b.shift_time || '—',
         loginRef: shift.start, loginAct: fmt(perf.login_time), loginDiff,
         logoutRef: shift.end,  logoutAct: fmt(perf.logout_time), logoutDiff,
-        b1Ref: fmt(b.break1), b1Act: fmt(perf.actual_break1), b1Diff,
-        lunchRef: fmt(b.lunch), lunchAct: fmt(perf.actual_lunch), lunchDiff,
-        b2Ref: fmt(b.break2), b2Act: fmt(perf.actual_break2), b2Diff,
+        b1Ref: fmt(b1Ref), b1Act: fmt(perf.actual_break1), b1Diff,
+        lunchRef: fmt(lunchRef), lunchAct: fmt(perf.actual_lunch), lunchDiff,
+        b2Ref: fmt(b2Ref), b2Act: fmt(perf.actual_break2), b2Diff,
         isLate,
       });
     });
