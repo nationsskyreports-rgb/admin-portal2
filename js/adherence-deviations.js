@@ -597,6 +597,33 @@ async function runAutoCheck() {
         .gte('excuse_date', from).lte('excuse_date', to),
     ]);
 
+    // ── FIX: build override map from approved Break Change requests ──
+    // When an agent has an approved break change request, use the requested_time
+    // as the reference instead of the original scheduled time from the breaks table.
+    // This prevents false "Long Break" deviations for agents who got their change approved.
+    const _slotMap = { 'Break 1': 'break1', 'Lunch': 'lunch', 'Break 2': 'break2' };
+    const breakOverrides = {};
+    try {
+      const { data: bcReqs } = await db.from('requests')
+        .select('agent_id, details, created_at')
+        .eq('type', 'Break Change')
+        .in('status', ['Approved', 'Pending'])
+        .gte('created_at', from + 'T00:00:00.000Z')
+        .lte('created_at', to   + 'T23:59:59.999Z');
+      (bcReqs || []).forEach(r => {
+        try {
+          const d = typeof r.details === 'string' ? JSON.parse(r.details) : (r.details || {});
+          const slot = _slotMap[d.break_type];
+          if (!slot || !d.requested_time) return;
+          const date = d.date || new Date(r.created_at)
+            .toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+          breakOverrides[`${r.agent_id}_${date}_${slot}`] = d.requested_time;
+        } catch(e) {}
+      });
+    } catch(e) { /* non-critical — auto-check still runs without overrides */ }
+    const _getRef = (agentId, date, slot, original) =>
+      breakOverrides[`${agentId}_${date}_${slot}`] || original;
+
     // ── Approved excuses → auto-waive matching deviations at creation time ──
     // 'Arrive Late' covers a Late Login; 'Leave Early' covers an Early Logout.
     // Matches by agent_id OR agent_name so it works regardless of import order.
@@ -663,15 +690,20 @@ async function runAutoCheck() {
       const agent     = allAgents.find(a => a.id === agentId);
       const agentName = agent?.formal_name || agentId;
 
+      // Apply approved Break Change overrides so the check uses the new committed time
+      const _b1    = _getRef(agentId, date, 'break1', b.break1);
+      const _lunch = _getRef(agentId, date, 'lunch',  b.lunch);
+      const _b2    = _getRef(agentId, date, 'break2', b.break2);
+
       const checks = [
         { type: 'Late Login',    slot: 'login',  ref: shift.start, actual: perf.login_time,    tol: TOL_LOGIN, invert: false,
           sched: shift.start,                       act: perf.login_time?.substring(0,5) },
-        { type: 'Long Break',    slot: 'break1', ref: b.break1,    actual: perf.actual_break1, tol: TOL_BRK,   invert: false,
-          sched: b.break1?.substring(0,5),          act: perf.actual_break1?.substring(0,5) },
-        { type: 'Long Break',    slot: 'lunch',  ref: b.lunch,     actual: perf.actual_lunch,  tol: TOL_BRK,   invert: false,
-          sched: b.lunch?.substring(0,5),           act: perf.actual_lunch?.substring(0,5) },
-        { type: 'Long Break',    slot: 'break2', ref: b.break2,    actual: perf.actual_break2, tol: TOL_BRK,   invert: false,
-          sched: b.break2?.substring(0,5),          act: perf.actual_break2?.substring(0,5) },
+        { type: 'Long Break',    slot: 'break1', ref: _b1,         actual: perf.actual_break1, tol: TOL_BRK,   invert: false,
+          sched: _b1?.substring(0,5),               act: perf.actual_break1?.substring(0,5) },
+        { type: 'Long Break',    slot: 'lunch',  ref: _lunch,      actual: perf.actual_lunch,  tol: TOL_BRK,   invert: false,
+          sched: _lunch?.substring(0,5),            act: perf.actual_lunch?.substring(0,5) },
+        { type: 'Long Break',    slot: 'break2', ref: _b2,         actual: perf.actual_break2, tol: TOL_BRK,   invert: false,
+          sched: _b2?.substring(0,5),               act: perf.actual_break2?.substring(0,5) },
         { type: 'Early Logout',  slot: 'logout', ref: shift.end,   actual: perf.logout_time,   tol: TOL_LOGIN, invert: true,
           sched: shift.end,                         act: perf.logout_time?.substring(0,5) },
       ];
