@@ -380,7 +380,7 @@ function viewRequest(id) {
   `;
   
 const showActions    = r.status === 'Pending' && r.type !== 'Excuse' && r.type !== 'Break Change';
-const showBrkActions = r.status === 'Pending' && r.type === 'Break Change';
+const showBrkActions = r.type === 'Break Change'; // show for Pending AND Approved — auto-approved requests need manual apply
 
 document.getElementById('panel-footer').innerHTML = `
     <button class="btn btn-ghost" onclick="closePanel()">Close</button>
@@ -392,11 +392,13 @@ document.getElementById('panel-footer').innerHTML = `
         <i class="fas fa-check"></i> Approve
       </button>
     ` : showBrkActions ? `
-      <button class="btn btn-danger" onclick="rejectRequest('${r.id}')">
-        <i class="fas fa-times"></i> Reject
-      </button>
+      ${r.status === 'Pending' ? `
+        <button class="btn btn-danger" onclick="rejectRequest('${r.id}')">
+          <i class="fas fa-times"></i> Reject
+        </button>
+      ` : ''}
       <button class="btn btn-success" onclick="approveRequest('${r.id}')">
-        <i class="fas fa-check"></i> Approve & Apply to Breaks
+        <i class="fas fa-check"></i> Apply to Breaks
       </button>
     ` : `
       <a href="${cfg.page}" class="btn btn-primary" style="text-decoration:none;">
