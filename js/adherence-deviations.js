@@ -614,10 +614,11 @@ async function runAutoCheck() {
         try {
           const d = typeof r.details === 'string' ? JSON.parse(r.details) : (r.details || {});
           const slot = _slotMap[d.break_type];
-          if (!slot || !d.requested_time) return;
+          const reqTime = d.new_time || d.requested_time; // canonical field is new_time
+          if (!slot || !reqTime) return;
           const date = d.date || new Date(r.created_at)
             .toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
-          breakOverrides[`${r.agent_id}_${date}_${slot}`] = d.requested_time;
+          breakOverrides[`${r.agent_id}_${date}_${slot}`] = reqTime;
         } catch(e) {}
       });
     } catch(e) { /* non-critical — auto-check still runs without overrides */ }
