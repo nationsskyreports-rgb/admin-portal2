@@ -490,17 +490,21 @@ async function approveRequest(id) {
       const breakDate = d.date || new Date(req.created_at)
         .toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
 
+      // Requested time field — canonical name is new_time; requested_time kept
+      // as a fallback in case any older rows were saved under that name.
+      const reqTime = d.new_time || d.requested_time;
+
       // Map break_type label → breaks table column
       const colMap = { 'Break 1': 'break1', 'Lunch': 'lunch', 'Break 2': 'break2' };
       const col    = colMap[d.break_type];
 
-      if (!col || !d.requested_time || !breakDate) {
-        showToast('⚠️ Approved — missing details to update breaks table', 'warning');
+      if (!col || !reqTime || !breakDate) {
+        showToast(`⚠️ Approved — missing details to update breaks table (break_type: ${d.break_type || '—'}, time: ${reqTime || '—'})`, 'warning');
       } else {
         // Format to HH:MM:SS if needed
-        const newTime = d.requested_time.length === 5
-          ? d.requested_time + ':00'
-          : d.requested_time;
+        const newTime = reqTime.length === 5
+          ? reqTime + ':00'
+          : reqTime;
 
         // Update only the changed break column for this agent on this date
         const update = { [col]: newTime, updated_at: new Date().toISOString() };
@@ -516,16 +520,16 @@ async function approveRequest(id) {
           const slotMap = { 'break1': 'break1', 'lunch': 'lunch', 'break2': 'break2' };
           await db.from('adherence_deviations')
             .update({ is_waived: true, waived_by: adminName, waived_at: new Date().toISOString(),
-                      waive_reason: `Approved break change: ${d.break_type} → ${d.requested_time}` })
+                      waive_reason: `Approved break change: ${d.break_type} → ${reqTime}` })
             .eq('agent_id', req.agent_id)
             .eq('deviation_date', breakDate)
             .eq('deviation_slot', slotMap[col])
             .eq('is_waived', false);
 
-          showToast(`✅ Approved & breaks updated (${d.break_type} → ${d.requested_time})`, 'success');
+          showToast(`✅ Approved & breaks updated (${d.break_type} → ${reqTime})`, 'success');
           if (typeof logAudit === 'function') {
             logAudit({ module: 'Requests', action: 'UPDATE', targetTable: 'breaks',
-              description: `Break Change approved for ${req.agent_name} on ${breakDate}: ${d.break_type} → ${d.requested_time}` });
+              description: `Break Change approved for ${req.agent_name} on ${breakDate}: ${d.break_type} → ${reqTime}` });
           }
         }
       }
@@ -555,7 +559,7 @@ if (r.type === 'Time Off')         return `${d.request_type||''} · ${d.from_dat
 if (r.type === 'Excuse')           return `${d.excuse_type||''} · ${d.date||''}`;
 if (r.type === 'Missing Punch')    return `Date: ${d.date||''}`;
 if (r.type === 'Shift Swap')       return `${d.date||''} · with ${d.colleague||''}`;
-if (r.type === 'Break Change')     return `${d.break_type||''} → ${d.requested_time||''}`;
+if (r.type === 'Break Change')     return `${d.break_type||''} → ${d.new_time || d.requested_time || ''}`;
 if (r.type === 'Schedule Request') return `Week: ${d.week_start||''}`;
 if (r.type === 'Waiving Request')  return `${d.deviation_type||''} · ${d.date||''}`;
 if (r.type === 'Outage')           return `${d.label||d.outage_type||''} · ${d.date||''}`;
