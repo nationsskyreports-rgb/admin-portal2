@@ -30,15 +30,19 @@
     <div class="topbar">
       <div class="topbar-left">
         <button class="sidebar-toggle" onclick="document.querySelector('.admin-layout').classList.toggle('sidebar-collapsed')"><i class="fas fa-bars"></i></button>
-        <h1 class="page-title"><i class="fas fa-stopwatch" style="color:var(--gold);margin-right:8px;"></i> Break Adherence</h1>
+        <div class="page-title">Break Adherence</div>
+        <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Budget-Based Tracking</div>
       </div>
       <div class="topbar-right">
-        <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-moon" id="theme-icon"></i></button>
-        <div class="admin-profile"><div class="admin-avatar" id="admin-avatar">A</div><span id="admin-name">Admin</span></div>
+        <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+        <div class="admin-chip">
+          <div class="admin-avatar" id="admin-avatar">A</div>
+          <span class="admin-name" id="admin-name">Admin</span>
+        </div>
       </div>
     </div>
 
-    <div class="content-area" style="padding:24px;">
+    <div class="page-content">
 
       <!-- ═══ CONFIG BAR ═══ -->
       <div class="card" style="margin-bottom:20px;">
