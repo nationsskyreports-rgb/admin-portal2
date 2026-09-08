@@ -115,13 +115,6 @@
             </select>
             <select id="project-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
               <option value="">All Projects</option>
-              <option>Sky Ridge Elite</option>
-              <option>Sky Ridge Executives</option>
-              <option>Zomra</option>
-              <option>Perla</option>
-              <option>Upviews</option>
-              <option>Jirian</option>
-              <option>Isla</option>
             </select>
             <select id="reason-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
               <option value="">All Categories</option>
@@ -340,9 +333,16 @@ async function init() {
   const agentSel = document.getElementById('agent-filter');
   (agents||[]).forEach(a => agentSel.add(new Option(a.formal_name, a.formal_name)));
 
-  const { data: reasons } = await db.from('call_reasons').select('name').eq('is_active',true).order('name');
+  const { data: reasons } = await db.from('call_reasons').select('name,category').eq('is_active',true).order('name');
   const reasonSel = document.getElementById('reason-filter');
   (reasons||[]).forEach(r => reasonSel.add(new Option(r.name, r.name)));
+
+  const projectSel = document.getElementById('project-filter');
+  const projects = [...new Set((reasons||[])
+    .filter(r => r.category === 'Projects Leads')
+    .map(r => r.name)
+    .filter(Boolean))];
+  projects.forEach(project => projectSel.add(new Option(project, project)));
 
   await loadAll();
 }
