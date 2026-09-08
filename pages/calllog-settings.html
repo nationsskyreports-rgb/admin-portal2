@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+.main-content { overflow-y:auto; height:100vh; }
 .tree-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:20px; }
 .tree-tab { padding:12px 20px; font-weight:700; font-size:13px; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; }
 .tree-tab:hover { color:var(--text); }
@@ -81,19 +82,32 @@
 
           <!-- ═══ CATEGORY 2 ═══ -->
           <div class="tree-section" id="sec-cat2">
-            <div class="inline-form">
-              <select id="add-cat2-parent" style="min-width:140px;">
-                <option value="">Parent Category 1…</option>
-              </select>
-              <input id="add-cat2-name" placeholder="Category 2 name…">
-              <button class="btn btn-primary btn-sm" onclick="addCat2()"><i class="fas fa-plus"></i> Add</button>
-            </div>
-            <div style="margin-bottom:12px;">
-              <select id="filter-cat2-parent" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCat2()">
-                <option value="">All Category 1</option>
+            <!-- Step 1: Pick parent Cat1 -->
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
+              <span style="font-size:12px;font-weight:800;color:var(--gold);white-space:nowrap;"><i class="fas fa-folder"></i> Working in:</span>
+              <select id="cat2-parent" class="form-input" style="flex:1;padding:8px 12px;" onchange="onCat2ParentChange()">
+                <option value="">Select Category 1 first…</option>
               </select>
             </div>
-            <div id="cat2-list"><div class="loading-wrap"><div class="spinner"></div></div></div>
+
+            <!-- Step 2: Add area — only visible after Cat1 selected -->
+            <div id="cat2-add-area" style="display:none;">
+              <!-- Quick single add -->
+              <div class="inline-form" style="margin-bottom:8px;">
+                <input id="add-cat2-name" placeholder="Type name and press Enter or click Add…" onkeydown="if(event.key==='Enter')addCat2()">
+                <button class="btn btn-primary btn-sm" onclick="addCat2()"><i class="fas fa-plus"></i> Add</button>
+                <button class="btn btn-ghost btn-sm" onclick="toggleBulk()" title="Bulk add"><i class="fas fa-list-ul"></i> Bulk</button>
+              </div>
+              <!-- Bulk add (hidden by default) -->
+              <div id="cat2-bulk-area" style="display:none;margin-bottom:14px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
+                <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;">Paste multiple names — one per line:</div>
+                <textarea id="cat2-bulk" class="form-input" rows="6" placeholder="Sales Lead&#10;Events&#10;EOI Refund&#10;Data Update&#10;..." style="font-size:13px;"></textarea>
+                <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="bulkAddCat2()"><i class="fas fa-layer-group"></i> Add All</button>
+              </div>
+            </div>
+
+            <!-- List -->
+            <div id="cat2-list"><div class="empty-state"><span class="empty-icon">👆</span>Select a Category 1 above to manage its sub-categories</div></div>
           </div>
         </div>
       </div>
@@ -196,14 +210,12 @@ async function loadCat1() {
   if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
   cat1Cache = data || [];
 
-  // Populate the Cat2 parent dropdowns
-  ['add-cat2-parent','filter-cat2-parent'].forEach(selId => {
-    const sel = document.getElementById(selId);
-    const val = sel.value;
-    sel.innerHTML = selId.startsWith('filter') ? '<option value="">All Category 1</option>' : '<option value="">Parent Category 1…</option>';
-    cat1Cache.filter(c => c.is_active).forEach(c => sel.add(new Option(c.name, c.id)));
-    sel.value = val;
-  });
+  // Populate the Cat2 parent dropdown
+  const sel = document.getElementById('cat2-parent');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">Select Category 1 first…</option>';
+  cat1Cache.filter(c => c.is_active).forEach(c => sel.add(new Option(c.name, c.id)));
+  sel.value = val;
 
   if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No categories yet</div>'; return; }
   wrap.innerHTML = data.map(r => `
@@ -228,24 +240,39 @@ async function addCat1() {
 // ══════════════════════════
 // CATEGORY 2
 // ══════════════════════════
+function onCat2ParentChange() {
+  const parentId = document.getElementById('cat2-parent').value;
+  document.getElementById('cat2-add-area').style.display = parentId ? '' : 'none';
+  document.getElementById('cat2-bulk-area').style.display = 'none';
+  if (parentId) {
+    loadCat2();
+    // Auto-focus the input for fast adding
+    setTimeout(() => document.getElementById('add-cat2-name').focus(), 100);
+  } else {
+    document.getElementById('cat2-list').innerHTML = '<div class="empty-state"><span class="empty-icon">👆</span>Select a Category 1 above to manage its sub-categories</div>';
+  }
+}
+
+function toggleBulk() {
+  const area = document.getElementById('cat2-bulk-area');
+  area.style.display = area.style.display === 'none' ? '' : 'none';
+}
+
 async function loadCat2() {
   const wrap   = document.getElementById('cat2-list');
-  const parent = document.getElementById('filter-cat2-parent').value;
+  const parent = document.getElementById('cat2-parent').value;
+  if (!parent) return;
   wrap.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
 
-  let q = db.from('call_log_category2').select('*').order('sort_order').order('name');
-  if (parent) q = q.eq('category1_id', parent);
-
-  const { data, error } = await q;
+  const { data, error } = await db.from('call_log_category2').select('*').eq('category1_id', parent).order('sort_order').order('name');
   if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
-  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No sub-categories yet</div>'; return; }
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No sub-categories yet — add some above!</div>'; return; }
 
-  const cat1Map = {};
-  cat1Cache.forEach(c => { cat1Map[c.id] = c.name; });
+  const parentName = cat1Cache.find(c => c.id === parent)?.name || '?';
 
-  wrap.innerHTML = data.map(r => `
+  wrap.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;">${data.length} item(s) under ${parentName}</div>` +
+    data.map(r => `
     <div class="item-row" style="opacity:${r.is_active ? 1 : 0.5};">
-      <span class="item-badge badge-cat">${cat1Map[r.category1_id] || '?'}</span>
       <span class="item-name">${r.name}</span>
       ${editBtn(r.id, 'call_log_category2', r.name)}
       ${toggleBtn(r.is_active, r.id, 'call_log_category2')}
@@ -254,14 +281,35 @@ async function loadCat2() {
 }
 
 async function addCat2() {
-  const parentId = document.getElementById('add-cat2-parent').value;
-  const name     = document.getElementById('add-cat2-name').value.trim();
-  if (!parentId) { showToast('Select parent Category 1', 'warning'); return; }
+  const parentId = document.getElementById('cat2-parent').value;
+  const input    = document.getElementById('add-cat2-name');
+  const name     = input.value.trim();
+  if (!parentId) { showToast('Select Category 1 first', 'warning'); return; }
   if (!name)     { showToast('Enter name', 'warning'); return; }
   const { error } = await db.from('call_log_category2').insert({ category1_id: parentId, name });
   if (error) { showToast(error.message, 'error'); return; }
-  document.getElementById('add-cat2-name').value = '';
-  showToast('Added', 'success');
+  input.value = '';
+  input.focus(); // Stay focused for fast adding
+  showToast('Added ✓', 'success');
+  loadCat2();
+}
+
+async function bulkAddCat2() {
+  const parentId = document.getElementById('cat2-parent').value;
+  const raw      = document.getElementById('cat2-bulk').value.trim();
+  if (!parentId) { showToast('Select Category 1 first', 'warning'); return; }
+  if (!raw)      { showToast('Paste names — one per line', 'warning'); return; }
+
+  const names = raw.split('\n').map(n => n.trim()).filter(Boolean);
+  if (!names.length) { showToast('No valid names found', 'warning'); return; }
+
+  const rows = names.map(name => ({ category1_id: parentId, name }));
+  const { error } = await db.from('call_log_category2').insert(rows);
+  if (error) { showToast(error.message, 'error'); return; }
+
+  document.getElementById('cat2-bulk').value = '';
+  document.getElementById('cat2-bulk-area').style.display = 'none';
+  showToast(`Added ${names.length} items ✓`, 'success');
   loadCat2();
 }
 
