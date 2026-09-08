@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/png" href="../logo.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOS Admin — Call Log Settings</title>
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.tree-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:20px; }
+.tree-tab { padding:12px 20px; font-weight:700; font-size:13px; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; }
+.tree-tab:hover { color:var(--text); }
+.tree-tab.active { color:var(--gold); border-bottom-color:var(--gold); }
+.tree-section { display:none; }
+.tree-section.active { display:block; }
+.item-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); transition:background .15s; }
+.item-row:hover { background:rgba(212,175,55,.03); }
+.item-row:last-child { border-bottom:none; }
+.item-name { flex:1; font-weight:700; font-size:13px; }
+.item-type { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700; text-transform:uppercase; }
+.type-project { background:rgba(212,175,55,.12); color:var(--gold); border:1px solid rgba(212,175,55,.2); }
+.type-other   { background:rgba(59,130,246,.12); color:#3B82F6; border:1px solid rgba(59,130,246,.2); }
+.item-badge { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700; }
+.badge-cat { background:rgba(139,92,246,.12); color:#8B5CF6; border:1px solid rgba(139,92,246,.2); }
+.inline-form { display:flex; gap:8px; align-items:center; padding:12px 14px; background:var(--surface2); border-radius:12px; margin-bottom:14px; }
+.inline-form input, .inline-form select { padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:13px; font-family:inherit; }
+.inline-form input { flex:1; }
+</style>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" onclick="document.querySelector('.admin-layout').classList.toggle('sidebar-collapsed')"><i class="fas fa-bars"></i></button>
+        <h1 class="page-title"><i class="fas fa-sitemap" style="color:var(--gold);margin-right:8px;"></i> Call Log Settings</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-moon" id="theme-icon"></i></button>
+        <div class="admin-profile"><div class="admin-avatar" id="admin-avatar">A</div><span id="admin-name">Admin</span></div>
+      </div>
+    </div>
+
+    <div class="content-area" style="padding:24px;">
+      <div class="card" style="padding:0;">
+
+        <!-- ═══ TABS ═══ -->
+        <div class="tree-tabs" style="padding:0 20px;">
+          <div class="tree-tab active" onclick="switchTab('choose')"><i class="fas fa-list-ul" style="margin-right:6px;"></i> Choose Options</div>
+          <div class="tree-tab" onclick="switchTab('cat1')"><i class="fas fa-folder" style="margin-right:6px;"></i> Category 1</div>
+          <div class="tree-tab" onclick="switchTab('cat2')"><i class="fas fa-folder-tree" style="margin-right:6px;"></i> Category 2</div>
+        </div>
+
+        <div style="padding:0 20px 20px;">
+
+          <!-- ═══ CHOOSE OPTIONS ═══ -->
+          <div class="tree-section active" id="sec-choose">
+            <div class="inline-form">
+              <input id="add-choose-name" placeholder="Option name…">
+              <select id="add-choose-type">
+                <option value="project">Project</option>
+                <option value="other">Other</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="addChoose()"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div id="choose-list"><div class="loading-wrap"><div class="spinner"></div></div></div>
+          </div>
+
+          <!-- ═══ CATEGORY 1 ═══ -->
+          <div class="tree-section" id="sec-cat1">
+            <div class="inline-form">
+              <input id="add-cat1-name" placeholder="Category 1 name…">
+              <button class="btn btn-primary btn-sm" onclick="addCat1()"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div id="cat1-list"><div class="loading-wrap"><div class="spinner"></div></div></div>
+          </div>
+
+          <!-- ═══ CATEGORY 2 ═══ -->
+          <div class="tree-section" id="sec-cat2">
+            <div class="inline-form">
+              <select id="add-cat2-parent" style="min-width:140px;">
+                <option value="">Parent Category 1…</option>
+              </select>
+              <input id="add-cat2-name" placeholder="Category 2 name…">
+              <button class="btn btn-primary btn-sm" onclick="addCat2()"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div style="margin-bottom:12px;">
+              <select id="filter-cat2-parent" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadCat2()">
+                <option value="">All Category 1</option>
+              </select>
+            </div>
+            <div id="cat2-list"><div class="loading-wrap"><div class="spinner"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SHARED UI ═══ -->
+<div id="toast-container" class="toast-container"></div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-card">
+    <h3 id="modal-title">Confirm</h3>
+    <p id="modal-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/supabase.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+renderSidebar();
+applyThemeIcon();
+const session = checkAuth();
+if (session) {
+  document.getElementById('admin-name').innerText  = session.username || 'Admin';
+  document.getElementById('admin-avatar').innerText = initials(session.username || 'Admin');
+}
+
+let cat1Cache = [];
+
+// ── TAB SWITCHING ──
+function switchTab(tab) {
+  document.querySelectorAll('.tree-tab').forEach((t,i) => {
+    const tabs = ['choose','cat1','cat2'];
+    t.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.tree-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-' + tab).classList.add('active');
+}
+
+// ── RENDER HELPERS ──
+function toggleBtn(isActive, id, table) {
+  const color = isActive ? '#10B981' : '#EF4444';
+  const icon  = isActive ? 'fa-toggle-on' : 'fa-toggle-off';
+  const title = isActive ? 'Active — click to deactivate' : 'Inactive — click to activate';
+  return `<button class="btn btn-ghost btn-sm btn-icon" title="${title}" style="color:${color};font-size:18px;"
+    onclick="toggleActive('${table}','${id}',${!isActive})"><i class="fas ${icon}"></i></button>`;
+}
+function deleteBtn(id, table, name) {
+  return `<button class="btn btn-ghost btn-sm btn-icon" title="Delete" style="color:#EF4444;"
+    onclick="deleteItem('${table}','${id}','${name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>`;
+}
+function editBtn(id, table, name) {
+  return `<button class="btn btn-ghost btn-sm btn-icon" title="Rename" style="color:var(--gold);"
+    onclick="renameItem('${table}','${id}','${name.replace(/'/g,"\\'")}')"><i class="fas fa-pen"></i></button>`;
+}
+
+// ══════════════════════════
+// CHOOSE OPTIONS
+// ══════════════════════════
+async function loadChoose() {
+  const wrap = document.getElementById('choose-list');
+  wrap.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  const { data, error } = await db.from('call_log_choose_options').select('*').order('sort_order').order('name');
+  if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No options yet</div>'; return; }
+
+  wrap.innerHTML = data.map(r => `
+    <div class="item-row" style="opacity:${r.is_active ? 1 : 0.5};">
+      <span class="item-type ${r.option_type === 'project' ? 'type-project' : 'type-other'}">${r.option_type}</span>
+      <span class="item-name">${r.name}</span>
+      ${editBtn(r.id, 'call_log_choose_options', r.name)}
+      ${toggleBtn(r.is_active, r.id, 'call_log_choose_options')}
+      ${deleteBtn(r.id, 'call_log_choose_options', r.name)}
+    </div>`).join('');
+}
+
+async function addChoose() {
+  const name = document.getElementById('add-choose-name').value.trim();
+  const type = document.getElementById('add-choose-type').value;
+  if (!name) { showToast('Enter name', 'warning'); return; }
+  const { error } = await db.from('call_log_choose_options').insert({ name, option_type: type });
+  if (error) { showToast(error.message, 'error'); return; }
+  document.getElementById('add-choose-name').value = '';
+  showToast('Added', 'success');
+  loadChoose();
+}
+
+// ══════════════════════════
+// CATEGORY 1
+// ══════════════════════════
+async function loadCat1() {
+  const wrap = document.getElementById('cat1-list');
+  wrap.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  const { data, error } = await db.from('call_log_categories').select('*').order('sort_order').order('name');
+  if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
+  cat1Cache = data || [];
+
+  // Populate the Cat2 parent dropdowns
+  ['add-cat2-parent','filter-cat2-parent'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    const val = sel.value;
+    sel.innerHTML = selId.startsWith('filter') ? '<option value="">All Category 1</option>' : '<option value="">Parent Category 1…</option>';
+    cat1Cache.filter(c => c.is_active).forEach(c => sel.add(new Option(c.name, c.id)));
+    sel.value = val;
+  });
+
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No categories yet</div>'; return; }
+  wrap.innerHTML = data.map(r => `
+    <div class="item-row" style="opacity:${r.is_active ? 1 : 0.5};">
+      <span class="item-name">${r.name}</span>
+      ${editBtn(r.id, 'call_log_categories', r.name)}
+      ${toggleBtn(r.is_active, r.id, 'call_log_categories')}
+      ${deleteBtn(r.id, 'call_log_categories', r.name)}
+    </div>`).join('');
+}
+
+async function addCat1() {
+  const name = document.getElementById('add-cat1-name').value.trim();
+  if (!name) { showToast('Enter name', 'warning'); return; }
+  const { error } = await db.from('call_log_categories').insert({ name });
+  if (error) { showToast(error.message, 'error'); return; }
+  document.getElementById('add-cat1-name').value = '';
+  showToast('Added', 'success');
+  loadCat1();
+}
+
+// ══════════════════════════
+// CATEGORY 2
+// ══════════════════════════
+async function loadCat2() {
+  const wrap   = document.getElementById('cat2-list');
+  const parent = document.getElementById('filter-cat2-parent').value;
+  wrap.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+
+  let q = db.from('call_log_category2').select('*').order('sort_order').order('name');
+  if (parent) q = q.eq('category1_id', parent);
+
+  const { data, error } = await q;
+  if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No sub-categories yet</div>'; return; }
+
+  const cat1Map = {};
+  cat1Cache.forEach(c => { cat1Map[c.id] = c.name; });
+
+  wrap.innerHTML = data.map(r => `
+    <div class="item-row" style="opacity:${r.is_active ? 1 : 0.5};">
+      <span class="item-badge badge-cat">${cat1Map[r.category1_id] || '?'}</span>
+      <span class="item-name">${r.name}</span>
+      ${editBtn(r.id, 'call_log_category2', r.name)}
+      ${toggleBtn(r.is_active, r.id, 'call_log_category2')}
+      ${deleteBtn(r.id, 'call_log_category2', r.name)}
+    </div>`).join('');
+}
+
+async function addCat2() {
+  const parentId = document.getElementById('add-cat2-parent').value;
+  const name     = document.getElementById('add-cat2-name').value.trim();
+  if (!parentId) { showToast('Select parent Category 1', 'warning'); return; }
+  if (!name)     { showToast('Enter name', 'warning'); return; }
+  const { error } = await db.from('call_log_category2').insert({ category1_id: parentId, name });
+  if (error) { showToast(error.message, 'error'); return; }
+  document.getElementById('add-cat2-name').value = '';
+  showToast('Added', 'success');
+  loadCat2();
+}
+
+// ══════════════════════════
+// SHARED ACTIONS
+// ══════════════════════════
+async function toggleActive(table, id, newState) {
+  const { error } = await db.from(table).update({ is_active: newState, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast(newState ? 'Activated' : 'Deactivated', 'success');
+  refreshAll();
+}
+
+function deleteItem(table, id, name) {
+  openModal('Delete', `Delete "${name}"? This cannot be undone.`, async () => {
+    const { error } = await db.from(table).delete().eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Deleted', 'success');
+    refreshAll();
+  });
+}
+
+function renameItem(table, id, currentName) {
+  const newName = prompt('Rename:', currentName);
+  if (!newName || newName.trim() === currentName) return;
+  db.from(table).update({ name: newName.trim(), updated_at: new Date().toISOString() }).eq('id', id)
+    .then(({ error }) => {
+      if (error) { showToast(error.message, 'error'); return; }
+      showToast('Renamed', 'success');
+      refreshAll();
+    });
+}
+
+function refreshAll() {
+  loadChoose();
+  loadCat1();
+  loadCat2();
+}
+
+// ── INIT ──
+refreshAll();
+</script>
+</body>
+</html>
