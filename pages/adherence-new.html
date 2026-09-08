@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/png" href="../logo.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOS Admin — Break Adherence (New)</title>
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.budget-bar { height:10px; border-radius:5px; background:var(--surface2); overflow:hidden; min-width:80px; }
+.budget-bar-fill { height:100%; border-radius:5px; transition:width .3s; }
+.budget-ok   .budget-bar-fill { background:linear-gradient(90deg,#10B981,#34D399); }
+.budget-warn .budget-bar-fill { background:linear-gradient(90deg,#F59E0B,#FBBF24); }
+.budget-over .budget-bar-fill { background:linear-gradient(90deg,#EF4444,#F87171); }
+.min-pill { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:800; font-family:'IBM Plex Mono',monospace; }
+.min-pill.ok   { background:rgba(16,185,129,.12); color:#10B981; border:1px solid rgba(16,185,129,.2); }
+.min-pill.warn { background:rgba(245,158,11,.12); color:#F59E0B; border:1px solid rgba(245,158,11,.2); }
+.min-pill.over { background:rgba(239,68,68,.12);  color:#EF4444; border:1px solid rgba(239,68,68,.2); }
+.cfg-input { width:72px; padding:6px 10px; text-align:center; font-family:monospace; font-size:14px; font-weight:700; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-content">
+
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" onclick="document.querySelector('.admin-layout').classList.toggle('sidebar-collapsed')"><i class="fas fa-bars"></i></button>
+        <h1 class="page-title"><i class="fas fa-stopwatch" style="color:var(--gold);margin-right:8px;"></i> Break Adherence</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-moon" id="theme-icon"></i></button>
+        <div class="admin-profile"><div class="admin-avatar" id="admin-avatar">A</div><span id="admin-name">Admin</span></div>
+      </div>
+    </div>
+
+    <div class="content-area" style="padding:24px;">
+
+      <!-- ═══ CONFIG BAR ═══ -->
+      <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:16px 20px;">
+          <div style="font-weight:800;color:var(--gold);font-size:13px;"><i class="fas fa-cog"></i> Budget Config</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;color:var(--muted);">Break Budget:</span>
+            <input type="number" id="cfg-break" class="cfg-input" value="60"> <span style="font-size:11px;color:var(--muted);">min</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;color:var(--muted);">WC Budget:</span>
+            <input type="number" id="cfg-wc" class="cfg-input" value="15"> <span style="font-size:11px;color:var(--muted);">min</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;color:var(--muted);">Tolerance:</span>
+            <input type="number" id="cfg-tol" class="cfg-input" value="2" style="width:56px;"> <span style="font-size:11px;color:var(--muted);">min</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveConfig()"><i class="fas fa-save"></i> Save</button>
+        </div>
+      </div>
+
+      <!-- ═══ FILTERS ═══ -->
+      <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px 20px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:700;color:var(--muted);">From</label>
+            <input type="date" id="f-from" class="form-input" style="width:auto;padding:8px 12px;">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:12px;font-weight:700;color:var(--muted);">To</label>
+            <input type="date" id="f-to" class="form-input" style="width:auto;padding:8px 12px;">
+          </div>
+          <select id="f-agent" class="form-input" style="width:auto;padding:8px 12px;">
+            <option value="">All Agents</option>
+          </select>
+          <button class="btn btn-primary" onclick="loadData()"><i class="fas fa-search"></i> Load</button>
+          <button class="btn btn-warning" onclick="runAutoCheck()" id="auto-btn"><i class="fas fa-robot"></i> Auto-Check</button>
+          <button class="btn btn-info" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Export</button>
+          <span id="row-count" style="font-size:11px;color:var(--muted);margin-left:auto;"></span>
+        </div>
+      </div>
+
+      <!-- ═══ KPIs ═══ -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;">
+        <div class="card" style="padding:16px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Total Records</div>
+          <div id="k-total" style="font-size:22px;font-weight:900;color:var(--text);margin-top:4px;">—</div>
+        </div>
+        <div class="card" style="padding:16px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Violations</div>
+          <div id="k-violations" style="font-size:22px;font-weight:900;color:#EF4444;margin-top:4px;">—</div>
+        </div>
+        <div class="card" style="padding:16px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Over-Break Min</div>
+          <div id="k-overbreak" style="font-size:22px;font-weight:900;color:#F59E0B;margin-top:4px;">—</div>
+        </div>
+        <div class="card" style="padding:16px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Over-WC Min</div>
+          <div id="k-overwc" style="font-size:22px;font-weight:900;color:#8B5CF6;margin-top:4px;">—</div>
+        </div>
+        <div class="card" style="padding:16px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Compliance %</div>
+          <div id="k-compliance" style="font-size:22px;font-weight:900;color:#10B981;margin-top:4px;">—</div>
+        </div>
+      </div>
+
+      <!-- ═══ TABLE ═══ -->
+      <div class="card">
+        <div style="overflow-x:auto;">
+          <table class="data-table" style="min-width:900px;">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Agent</th>
+                <th>Break Used</th>
+                <th style="width:120px;">Break Bar</th>
+                <th>WC Used</th>
+                <th style="width:120px;">WC Bar</th>
+                <th>Over Break</th>
+                <th>Over WC</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="9"><div class="empty-state"><span class="empty-icon">📊</span>Select date range and click Load</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SHARED UI ═══ -->
+<div id="toast-container" class="toast-container"></div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-card">
+    <h3 id="modal-title">Confirm</h3>
+    <p id="modal-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/supabase.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+renderSidebar();
+applyThemeIcon();
+const session = checkAuth();
+if (session) {
+  document.getElementById('admin-name').innerText  = session.username || 'Admin';
+  document.getElementById('admin-avatar').innerText = initials(session.username || 'Admin');
+}
+
+let allAgents = [];
+let tableData = [];
+let CFG = { breakBudget: 60, wcBudget: 15, tolerance: 2 };
+
+// ── INIT ──
+(async function init() {
+  // Load agents
+  const { data: agents } = await db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name');
+  allAgents = agents || [];
+  const sel = document.getElementById('f-agent');
+  allAgents.forEach(a => sel.add(new Option(a.formal_name, a.id)));
+
+  // Load config
+  const { data: cfgRows } = await db.from('adherence_config').select('daily_break_budget,daily_wc_budget,break_tolerance').limit(1);
+  if (cfgRows && cfgRows[0]) {
+    CFG.breakBudget = cfgRows[0].daily_break_budget || 60;
+    CFG.wcBudget    = cfgRows[0].daily_wc_budget    || 15;
+    CFG.tolerance   = cfgRows[0].break_tolerance     || 2;
+  }
+  document.getElementById('cfg-break').value = CFG.breakBudget;
+  document.getElementById('cfg-wc').value    = CFG.wcBudget;
+  document.getElementById('cfg-tol').value   = CFG.tolerance;
+
+  // Default dates: this month
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+  document.getElementById('f-from').value = today.slice(0,7) + '-01';
+  document.getElementById('f-to').value   = today;
+})();
+
+// ── SAVE CONFIG ──
+async function saveConfig() {
+  const breakB = parseInt(document.getElementById('cfg-break').value) || 60;
+  const wcB    = parseInt(document.getElementById('cfg-wc').value) || 15;
+  const tol    = parseInt(document.getElementById('cfg-tol').value) || 2;
+
+  const { error } = await db.from('adherence_config')
+    .update({ daily_break_budget: breakB, daily_wc_budget: wcB, break_tolerance: tol,
+              updated_by: session?.username || 'Admin', updated_at: new Date().toISOString() })
+    .not('id', 'is', null); // update all rows
+
+  if (error) { showToast('Failed: ' + error.message, 'error'); return; }
+  CFG = { breakBudget: breakB, wcBudget: wcB, tolerance: tol };
+  showToast('Config saved', 'success');
+}
+
+// ── LOAD DATA ──
+async function loadData() {
+  const from    = document.getElementById('f-from').value;
+  const to      = document.getElementById('f-to').value;
+  const agentId = document.getElementById('f-agent').value;
+  const tbody   = document.getElementById('tbody');
+
+  if (!from || !to) { showToast('Select date range', 'warning'); return; }
+  tbody.innerHTML = '<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
+
+  try {
+    let q = db.from('daily_performance')
+      .select('agent_id, agent_name, perf_date, personal_break_sec, work_pause_sec, wc_sec, login_time, logout_time')
+      .gte('perf_date', from).lte('perf_date', to)
+      .order('perf_date', { ascending: false })
+      .order('agent_name');
+
+    if (agentId) q = q.eq('agent_id', agentId);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    tableData = (data || []).map(r => {
+      const breakMin = Math.round(((r.personal_break_sec || 0) + (r.work_pause_sec || 0)) / 60);
+      const wcMin    = Math.round((r.wc_sec || 0) / 60);
+      const overBreak = Math.max(0, breakMin - CFG.breakBudget);
+      const overWC    = Math.max(0, wcMin - CFG.wcBudget);
+      const isViolation = overBreak > CFG.tolerance || overWC > CFG.tolerance;
+      return { ...r, breakMin, wcMin, overBreak, overWC, isViolation };
+    });
+
+    renderTable();
+    renderKPIs();
+    document.getElementById('row-count').innerText = tableData.length + ' record(s)';
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">❌</span>${e.message}</div></td></tr>`;
+    showToast('Failed: ' + e.message, 'error');
+  }
+}
+
+// ── RENDER TABLE ──
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  if (!tableData.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">✨</span>No data found for this period</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = tableData.map(r => {
+    const breakPct = Math.min(100, Math.round((r.breakMin / CFG.breakBudget) * 100));
+    const wcPct    = Math.min(100, Math.round((r.wcMin / CFG.wcBudget) * 100));
+    const breakCls = r.overBreak > CFG.tolerance ? 'budget-over' : r.overBreak > 0 ? 'budget-warn' : 'budget-ok';
+    const wcCls    = r.overWC > CFG.tolerance ? 'budget-over' : r.overWC > 0 ? 'budget-warn' : 'budget-ok';
+    const pillCls  = c => c > CFG.tolerance ? 'over' : c > 0 ? 'warn' : 'ok';
+
+    const statusBadge = r.isViolation
+      ? '<span class="badge badge-danger">⚠ Over</span>'
+      : '<span class="badge badge-success">✓ OK</span>';
+
+    const dateStr = new Date(r.perf_date + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+
+    return `<tr style="${r.isViolation ? 'background:rgba(239,68,68,.04);' : ''}">
+      <td style="font-weight:700;color:var(--gold);white-space:nowrap;font-size:12px;">${dateStr}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="agent-avatar" style="width:26px;height:26px;font-size:9px;">${initials(r.agent_name)}</div>
+          <span style="font-weight:700;font-size:13px;">${r.agent_name}</span>
+        </div>
+      </td>
+      <td><span class="min-pill ${pillCls(r.overBreak)}">${r.breakMin}m / ${CFG.breakBudget}m</span></td>
+      <td>
+        <div class="${breakCls}" title="${r.breakMin}m of ${CFG.breakBudget}m">
+          <div class="budget-bar"><div class="budget-bar-fill" style="width:${breakPct}%;"></div></div>
+        </div>
+      </td>
+      <td><span class="min-pill ${pillCls(r.overWC)}">${r.wcMin}m / ${CFG.wcBudget}m</span></td>
+      <td>
+        <div class="${wcCls}" title="${r.wcMin}m of ${CFG.wcBudget}m">
+          <div class="budget-bar"><div class="budget-bar-fill" style="width:${wcPct}%;"></div></div>
+        </div>
+      </td>
+      <td style="font-family:monospace;font-weight:700;color:${r.overBreak > CFG.tolerance ? '#EF4444' : 'var(--muted)'};">${r.overBreak > 0 ? '+' + r.overBreak + 'm' : '—'}</td>
+      <td style="font-family:monospace;font-weight:700;color:${r.overWC > CFG.tolerance ? '#8B5CF6' : 'var(--muted)'};">${r.overWC > 0 ? '+' + r.overWC + 'm' : '—'}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── RENDER KPIs ──
+function renderKPIs() {
+  const total      = tableData.length;
+  const violations = tableData.filter(r => r.isViolation).length;
+  const overBreak  = tableData.reduce((s,r) => s + Math.max(0, r.overBreak - CFG.tolerance), 0);
+  const overWC     = tableData.reduce((s,r) => s + Math.max(0, r.overWC - CFG.tolerance), 0);
+  const compliance = total > 0 ? Math.round(((total - violations) / total) * 100) : 100;
+
+  document.getElementById('k-total').innerText      = total;
+  document.getElementById('k-violations').innerText  = violations;
+  document.getElementById('k-overbreak').innerText   = overBreak + 'm';
+  document.getElementById('k-overwc').innerText      = overWC + 'm';
+  document.getElementById('k-compliance').innerText  = compliance + '%';
+  document.getElementById('k-compliance').style.color = compliance >= 90 ? '#10B981' : compliance >= 70 ? '#F59E0B' : '#EF4444';
+}
+
+// ── AUTO-CHECK — creates deviations ──
+async function runAutoCheck() {
+  if (!tableData.length) { showToast('Load data first', 'warning'); return; }
+
+  const btn = document.getElementById('auto-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking…';
+
+  try {
+    const from = document.getElementById('f-from').value;
+    const to   = document.getElementById('f-to').value;
+    const createdBy = session?.username || 'Auto-Check';
+
+    // Fetch existing deviations for this period to avoid duplicates
+    const { data: existing } = await db.from('adherence_deviations')
+      .select('agent_id, deviation_date, deviation_type, deviation_slot, is_waived, id')
+      .gte('deviation_date', from).lte('deviation_date', to)
+      .in('deviation_type', ['Over Break', 'Over WC']);
+
+    const existingMap = new Map(
+      (existing || []).map(d => [`${d.agent_id}_${d.deviation_date}_${d.deviation_type}`, d])
+    );
+
+    const toInsert = [];
+    const toDelete = [];
+
+    tableData.forEach(r => {
+      // Over Break check
+      const breakKey = `${r.agent_id}_${r.perf_date}_Over Break`;
+      const breakEx  = existingMap.get(breakKey);
+      if (r.overBreak > CFG.tolerance) {
+        if (!breakEx) {
+          toInsert.push({
+            agent_id: r.agent_id, agent_name: r.agent_name,
+            deviation_date: r.perf_date, deviation_type: 'Over Break',
+            scheduled_value: CFG.breakBudget + 'm', actual_value: r.breakMin + 'm',
+            deviation_minutes: r.overBreak, deviation_slot: 'break_total',
+            notes: `Break: ${r.breakMin}m vs ${CFG.breakBudget}m budget (+${r.overBreak}m)`,
+            source: 'Auto', created_by: createdBy, is_waived: false,
+          });
+        }
+      } else if (breakEx && !breakEx.is_waived) {
+        toDelete.push(breakEx.id);
+      }
+
+      // Over WC check
+      const wcKey = `${r.agent_id}_${r.perf_date}_Over WC`;
+      const wcEx  = existingMap.get(wcKey);
+      if (r.overWC > CFG.tolerance) {
+        if (!wcEx) {
+          toInsert.push({
+            agent_id: r.agent_id, agent_name: r.agent_name,
+            deviation_date: r.perf_date, deviation_type: 'Over WC',
+            scheduled_value: CFG.wcBudget + 'm', actual_value: r.wcMin + 'm',
+            deviation_minutes: r.overWC, deviation_slot: 'wc_total',
+            notes: `WC: ${r.wcMin}m vs ${CFG.wcBudget}m budget (+${r.overWC}m)`,
+            source: 'Auto', created_by: createdBy, is_waived: false,
+          });
+        }
+      } else if (wcEx && !wcEx.is_waived) {
+        toDelete.push(wcEx.id);
+      }
+    });
+
+    const parts = [];
+    if (toInsert.length) {
+      for (let i = 0; i < toInsert.length; i += 100) {
+        const { error } = await db.from('adherence_deviations').insert(toInsert.slice(i, i + 100));
+        if (error) throw error;
+      }
+      parts.push(`${toInsert.length} new`);
+    }
+    if (toDelete.length) {
+      for (let i = 0; i < toDelete.length; i += 100) {
+        const { error } = await db.from('adherence_deviations').delete().in('id', toDelete.slice(i, i + 100));
+        if (error) throw error;
+      }
+      parts.push(`${toDelete.length} cleared`);
+    }
+
+    showToast(parts.length ? `⚠️ ${parts.join(', ')}` : '✅ No changes — all up to date', parts.length ? 'warning' : 'success');
+
+  } catch(e) {
+    showToast('Failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-robot"></i> Auto-Check';
+  }
+}
+
+// ── EXPORT ──
+function exportExcel() {
+  if (!tableData.length) { showToast('No data to export', 'warning'); return; }
+  const rows = tableData.map(r => ({
+    Date: r.perf_date, Agent: r.agent_name,
+    'Break Used (min)': r.breakMin, 'Break Budget': CFG.breakBudget,
+    'Over Break': r.overBreak > 0 ? r.overBreak : 0,
+    'WC Used (min)': r.wcMin, 'WC Budget': CFG.wcBudget,
+    'Over WC': r.overWC > 0 ? r.overWC : 0,
+    Status: r.isViolation ? 'VIOLATION' : 'OK',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Break Adherence');
+  XLSX.writeFile(wb, `break-adherence_${document.getElementById('f-from').value}_${document.getElementById('f-to').value}.xlsx`);
+}
+</script>
+</body>
+</html>
