@@ -27,6 +27,8 @@
 .inline-form { display:flex; gap:8px; align-items:center; padding:12px 14px; background:var(--surface2); border-radius:12px; margin-bottom:14px; }
 .inline-form input, .inline-form select { padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:13px; font-family:inherit; }
 .inline-form input { flex:1; }
+.cat2-pick-row:hover { background:rgba(212,175,55,.06); }
+.cat2-pick-row:last-child { border-bottom:none !important; }
 </style>
 </head>
 <body>
@@ -100,12 +102,30 @@
                 <input id="add-cat2-name" placeholder="Type name and press Enter or click Add…" onkeydown="if(event.key==='Enter')addCat2()">
                 <button class="btn btn-primary btn-sm" onclick="addCat2()"><i class="fas fa-plus"></i> Add</button>
                 <button class="btn btn-ghost btn-sm" onclick="toggleBulk()" title="Bulk add"><i class="fas fa-list-ul"></i> Bulk</button>
+                <button class="btn btn-ghost btn-sm" onclick="togglePick()" title="Reuse a sub-category that exists under another Category 1"><i class="fas fa-clone"></i> Pick existing</button>
               </div>
               <!-- Bulk add (hidden by default) -->
               <div id="cat2-bulk-area" style="display:none;margin-bottom:14px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
                 <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;">Paste multiple names — one per line:</div>
                 <textarea id="cat2-bulk" class="form-input" rows="6" placeholder="Sales Lead&#10;Events&#10;EOI Refund&#10;Data Update&#10;..." style="font-size:13px;"></textarea>
                 <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="bulkAddCat2()"><i class="fas fa-layer-group"></i> Add All</button>
+              </div>
+              <!-- Pick existing (hidden by default) -->
+              <div id="cat2-pick-area" style="display:none;margin-bottom:14px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+                  <div style="font-size:11px;color:var(--muted);font-weight:700;">Reuse a sub-category that exists under another Category 1 — pick one or more:</div>
+                  <input id="cat2-pick-filter" placeholder="🔎 Filter…" class="form-input" style="width:180px;padding:6px 10px;font-size:12px;" oninput="renderPickList()">
+                </div>
+                <div id="cat2-pick-list" style="max-height:280px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;">
+                  <div class="loading-wrap"><div class="spinner"></div></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
+                  <span id="cat2-pick-count" style="font-size:11px;color:var(--muted);font-weight:700;">0 selected</span>
+                  <div style="display:flex;gap:8px;">
+                    <button class="btn btn-ghost btn-sm" onclick="clearPickSelection()"><i class="fas fa-times"></i> Clear</button>
+                    <button class="btn btn-primary btn-sm" onclick="addSelectedExistingCat2()"><i class="fas fa-plus-circle"></i> Add selected</button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -258,7 +278,102 @@ function onCat2ParentChange() {
 
 function toggleBulk() {
   const area = document.getElementById('cat2-bulk-area');
-  area.style.display = area.style.display === 'none' ? '' : 'none';
+  const opening = area.style.display === 'none';
+  if (opening) document.getElementById('cat2-pick-area').style.display = 'none';
+  area.style.display = opening ? '' : 'none';
+}
+
+// ── PICK EXISTING (reuse a Cat2 name from another Cat1) ──
+let _allCat2Cache = []; // { id, category1_id, name }
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function togglePick() {
+  const area = document.getElementById('cat2-pick-area');
+  const opening = area.style.display === 'none';
+  if (opening) document.getElementById('cat2-bulk-area').style.display = 'none';
+  area.style.display = opening ? '' : 'none';
+  if (opening) loadPickList();
+}
+
+async function loadPickList() {
+  const listEl = document.getElementById('cat2-pick-list');
+  listEl.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  const { data, error } = await db.from('call_log_category2').select('id, category1_id, name').order('name');
+  if (error) { listEl.innerHTML = `<div class="empty-state" style="padding:20px;">❌ ${error.message}</div>`; return; }
+  _allCat2Cache = data || [];
+  renderPickList();
+}
+
+function renderPickList() {
+  const listEl = document.getElementById('cat2-pick-list');
+  const filter = (document.getElementById('cat2-pick-filter').value || '').trim().toLowerCase();
+  const currentParent = document.getElementById('cat2-parent').value;
+
+  // Group by name (case-insensitive dedup), collect the parent Cat1 IDs each name is under
+  const byName = {};
+  for (const row of _allCat2Cache) {
+    const key = row.name.toLowerCase();
+    if (!byName[key]) byName[key] = { name: row.name, parents: new Set() };
+    byName[key].parents.add(row.category1_id);
+  }
+
+  const items = Object.values(byName)
+    .map(x => {
+      const parentNames = [...x.parents]
+        .map(pid => cat1Cache.find(c => c.id === pid)?.name || '?')
+        .sort((a, b) => a.localeCompare(b));
+      return {
+        name: x.name,
+        parentNames,
+        alreadyHere: x.parents.has(currentParent),
+      };
+    })
+    .filter(x => !x.alreadyHere)                            // hide names already under current Cat1
+    .filter(x => !filter || x.name.toLowerCase().includes(filter))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (!items.length) {
+    listEl.innerHTML = '<div class="empty-state" style="padding:20px;font-size:12px;"><span class="empty-icon">📭</span>Nothing to reuse — all existing sub-categories are already here (or none match the filter).</div>';
+    updatePickCount();
+    return;
+  }
+
+  listEl.innerHTML = items.map(item => `
+    <label class="cat2-pick-row" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);">
+      <input type="checkbox" class="cat2-pick-cb" data-name="${escapeHtml(item.name)}" onchange="updatePickCount()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+      <span style="flex:1;font-weight:700;color:var(--text);">${escapeHtml(item.name)}</span>
+      <span style="font-size:10px;color:var(--muted);text-align:right;">in: ${item.parentNames.map(escapeHtml).join(', ')}</span>
+    </label>
+  `).join('');
+  updatePickCount();
+}
+
+function updatePickCount() {
+  const n = document.querySelectorAll('.cat2-pick-cb:checked').length;
+  document.getElementById('cat2-pick-count').innerText = `${n} selected`;
+}
+
+function clearPickSelection() {
+  document.querySelectorAll('.cat2-pick-cb:checked').forEach(cb => cb.checked = false);
+  updatePickCount();
+}
+
+async function addSelectedExistingCat2() {
+  const parentId = document.getElementById('cat2-parent').value;
+  if (!parentId) { showToast('Select Category 1 first', 'warning'); return; }
+  const names = [...document.querySelectorAll('.cat2-pick-cb:checked')].map(cb => cb.dataset.name);
+  if (!names.length) { showToast('Pick at least one name', 'warning'); return; }
+
+  const rows = names.map(name => ({ category1_id: parentId, name }));
+  const { error } = await db.from('call_log_category2').insert(rows);
+  if (error) { showToast(error.message, 'error'); return; }
+
+  document.getElementById('cat2-pick-area').style.display = 'none';
+  showToast(`Added ${names.length} item(s) ✓`, 'success');
+  loadCat2();
 }
 
 async function loadCat2() {
