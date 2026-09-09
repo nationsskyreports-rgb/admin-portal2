@@ -340,6 +340,9 @@ var TDPC= 'padding:9px 14px;border-bottom:1px solid #e0e0e0;font-size:12px;text-
 var TDF = 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;';
 var TDFC= 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;text-align:center;color:#1E5E9E;';
 var TDFR= 'padding:10px 14px;background:#EBF0F8;font-weight:800;font-size:12px;text-align:right;';
+/* Helper: is this record a project lead? (new system: has project field, old system: reason in projReasons list) */
+function isProjectLead(r, projList) { return (r.project && r.project.trim()) || (projList || []).includes(r.call_reason); }
+
 let _callsData = [], _projReasons = [], _sortedReasons = [], _sortedAgents = [];
 
 function switchTab(name, btn) {
@@ -407,7 +410,7 @@ async function loadWhatsAppReport() {
       .lte('logged_at', todayStr+'T23:59:59');
 
     // KPI Cards
-    const leads   = wa.filter(r=>projReasons.includes(r.call_reason)).length;
+    const leads   = wa.filter(r=>isProjectLead(r, projReasons)).length;
     const sales   = wa.filter(r=>r.sales_call_requested==='Yes').length;
     const biz     = wa.filter(r=>r.business_relativity==='Business Related').length;
     const bizPct  = total ? (biz/total*100).toFixed(1)+'%' : '0%';
@@ -498,7 +501,7 @@ async function loadWhatsAppReport() {
 
 async function loadCallStats(dateFrom, dateTo, monthName, year) {
   const [callsRes, reasonsRes] = await Promise.all([
-    db.from('call_logs').select('call_reason,agent_name,logged_at,business_relativity').gte('logged_at',dateFrom).lte('logged_at',dateTo),
+    db.from('call_logs').select('call_reason,agent_name,logged_at,business_relativity,project').gte('logged_at',dateFrom).lte('logged_at',dateTo),
     db.from('call_reasons').select('name,category').eq('is_active',true),
   ]);
   _callsData  = callsRes.data  || [];
@@ -509,7 +512,7 @@ async function loadCallStats(dateFrom, dateTo, monthName, year) {
   document.getElementById('r-calls').innerText = total;
   document.getElementById('calls-total-label').innerText = total+' total';
 
-  const leads = _callsData.filter(c=>_projReasons.includes(c.call_reason)).length;
+  const leads = _callsData.filter(c=>isProjectLead(c, projReasons)).length;
   document.getElementById('r-leads').innerText   = leads;
   document.getElementById('proj-count').innerText = leads;
   document.getElementById('proj-pct').innerText   = total?(leads/total*100).toFixed(1)+'%':'0%';
@@ -681,7 +684,7 @@ async function copyReport() {
   const total     = _callsData.length;
   const bizCalls    = _callsData.filter(c=>c.business_relativity==='Business Related').length;
   const nonBizCalls = _callsData.filter(c=>c.business_relativity==='Non-Business Related').length;
-  const leads       = _callsData.filter(c=>_projReasons.includes(c.call_reason)).length;
+  const leads       = _callsData.filter(c=>isProjectLead(c, projReasons)).length;
   const bizPct    = total?(bizCalls/total*100).toFixed(1)+'%':'0%';
   const nonBizPct = total?(nonBizCalls/total*100).toFixed(1)+'%':'0%';
 
@@ -947,8 +950,8 @@ async function exportExcel() {
 
     // ── Fetch everything in parallel ──
     const [callsRes, waRes, reasonsRes, agentsRes, perfRes, excRes, annRes, qualRes] = await Promise.all([
-      db.from('call_logs').select('call_reason,agent_name,logged_at,business_relativity,sales_call_requested').gte('logged_at', dateFrom).lte('logged_at', dateTo),
-      db.from('whatsapp_logs').select('call_reason,agent_name,logged_at,business_relativity,sales_call_requested').gte('logged_at', dateFrom).lte('logged_at', dateTo),
+      db.from('call_logs').select('call_reason,agent_name,logged_at,business_relativity,sales_call_requested,project').gte('logged_at', dateFrom).lte('logged_at', dateTo),
+      db.from('whatsapp_logs').select('call_reason,agent_name,logged_at,business_relativity,sales_call_requested,project').gte('logged_at', dateFrom).lte('logged_at', dateTo),
       db.from('call_reasons').select('name,category').eq('is_active', true),
       db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name'),
       db.from('daily_performance').select('agent_id,conformance,missing_sec,active_sec,target_sec,avg_aht,calls,perf_date').gte('perf_date', dateFromD).lte('perf_date', dateToD),
@@ -986,7 +989,7 @@ async function exportExcel() {
     const nbizCalls0  = calls.filter(c=>c.business_relativity==='Non-Business Related').length;
     const wrongNum0   = calls.filter(c=>c.call_reason==='Wrong Number').length;
     const callDrop0   = calls.filter(c=>c.call_reason==='Call Dropped').length;
-    const leadCalls0  = calls.filter(c=>projReasons.includes(c.call_reason)).length;
+    const leadCalls0  = calls.filter(c=>isProjectLead(c, projReasons)).length;
     const bizOnlyCalls0   = bizCalls0 - leadCalls0;
     // Unclassified = calls that are none of the above (should be ~0 if agents classify properly)
     const classified0     = new Set([
@@ -1053,7 +1056,7 @@ async function exportExcel() {
       ['── WHATSAPP ──'],
       ['Total WhatsApp',        totalWA0],
       ['Business Related',      wa.filter(w=>w.business_relativity==='Business Related').length],
-      ['Project Leads',         wa.filter(w=>projReasons.includes(w.call_reason)).length],
+      ['Project Leads',         wa.filter(w=>isProjectLead(w, projReasons)).length],
       [],
       ['── ATTENDANCE ──'],
       ['Active Agents',         agents.length],
@@ -1102,7 +1105,7 @@ async function exportExcel() {
         const tot  = ag.length;
         const biz  = ag.filter(c=>c.business_relativity==='Business Related').length;
         const nbiz = ag.filter(c=>c.business_relativity==='Non-Business Related').length;
-        const ld   = ag.filter(c=>projReasons.includes(c.call_reason)).length;
+        const ld   = ag.filter(c=>isProjectLead(c, projReasons)).length;
         return [a, tot,
           biz,  tot ? +((biz/tot*100).toFixed(1))  : 0,
           nbiz, tot ? +((nbiz/tot*100).toFixed(1)) : 0,
@@ -1146,13 +1149,13 @@ async function exportExcel() {
         const ag = calls.filter(c=>c.agent_name===a);
         const biz  = ag.filter(c=>c.business_relativity==='Business Related').length;
         const nbiz = ag.filter(c=>c.business_relativity==='Non-Business Related').length;
-        const ld   = ag.filter(c=>projReasons.includes(c.call_reason)).length;
+        const ld   = ag.filter(c=>isProjectLead(c, projReasons)).length;
         return [a, n, total1 ? +((n/total1*100).toFixed(1)) : 0, biz, nbiz, ld];
       }),
       ['TOTAL', total1, '100%',
         calls.filter(c=>c.business_relativity==='Business Related').length,
         calls.filter(c=>c.business_relativity==='Non-Business Related').length,
-        calls.filter(c=>projReasons.includes(c.call_reason)).length,
+        calls.filter(c=>isProjectLead(c, projReasons)).length,
       ],
     ];
     const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
@@ -1247,13 +1250,13 @@ async function exportExcel() {
         const ag   = wa.filter(w=>w.agent_name===a);
         const biz  = ag.filter(w=>w.business_relativity==='Business Related').length;
         const nbiz = ag.filter(w=>w.business_relativity==='Non-Business Related').length;
-        const ld   = ag.filter(w=>projReasons.includes(w.call_reason)).length;
+        const ld   = ag.filter(w=>isProjectLead(w, projReasons)).length;
         return [a, n, totalWA ? +((n/totalWA*100).toFixed(1)) : 0, biz, nbiz, ld];
       }),
       ['TOTAL', totalWA, '100%',
         wa.filter(w=>w.business_relativity==='Business Related').length,
         wa.filter(w=>w.business_relativity==='Non-Business Related').length,
-        wa.filter(w=>projReasons.includes(w.call_reason)).length,
+        wa.filter(w=>isProjectLead(w, projReasons)).length,
       ],
     ];
     const ws6 = XLSX.utils.aoa_to_sheet(ws6Data);
