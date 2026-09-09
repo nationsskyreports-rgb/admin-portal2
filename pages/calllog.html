@@ -351,9 +351,20 @@ async function init() {
   const agentSel = document.getElementById('agent-filter');
   (agents||[]).forEach(a => agentSel.add(new Option(a.formal_name, a.formal_name)));
 
-  const { data: reasons } = await db.from('call_reasons').select('name').eq('is_active',true).order('name');
+  // Load Category 2 options for filter — from new table, with fallback to old call_reasons
   const reasonSel = document.getElementById('reason-filter');
-  (reasons||[]).forEach(r => reasonSel.add(new Option(r.name, r.name)));
+  try {
+    const { data: cat2items } = await db.from('call_log_category2').select('name').eq('is_active',true).order('name');
+    if (cat2items && cat2items.length) {
+      cat2items.forEach(r => reasonSel.add(new Option(r.name, r.name)));
+    } else {
+      const { data: reasons } = await db.from('call_reasons').select('name').eq('is_active',true).order('name');
+      (reasons||[]).forEach(r => reasonSel.add(new Option(r.name, r.name)));
+    }
+  } catch(e) {
+    const { data: reasons } = await db.from('call_reasons').select('name').eq('is_active',true).order('name');
+    (reasons||[]).forEach(r => reasonSel.add(new Option(r.name, r.name)));
+  }
 
   await loadAll();
 }
