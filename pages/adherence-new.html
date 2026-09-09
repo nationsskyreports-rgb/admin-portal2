@@ -79,6 +79,10 @@
             <option value="">All Agents</option>
           </select>
           <button class="btn btn-primary" onclick="loadData()"><i class="fas fa-search"></i> Load</button>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px;">
+            <input type="checkbox" id="chk-loginout" style="accent-color:var(--gold);width:16px;height:16px;">
+            <span>Include Login/Logout</span>
+          </label>
           <button class="btn btn-warning" onclick="runAutoCheck()" id="auto-btn"><i class="fas fa-robot"></i> Auto-Check</button>
           <button class="btn btn-info" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Export</button>
           <span id="row-count" style="font-size:11px;color:var(--muted);margin-left:auto;"></span>
@@ -117,6 +121,8 @@
               <tr>
                 <th>Date</th>
                 <th>Agent</th>
+                <th>Login</th>
+                <th>Logout</th>
                 <th>Break Used</th>
                 <th style="width:120px;">Break Bar</th>
                 <th>WC Used</th>
@@ -127,7 +133,7 @@
               </tr>
             </thead>
             <tbody id="tbody">
-              <tr><td colspan="9"><div class="empty-state"><span class="empty-icon">📊</span>Select date range and click Load</div></td></tr>
+              <tr><td colspan="11"><div class="empty-state"><span class="empty-icon">📊</span>Select date range and click Load</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -215,7 +221,9 @@ async function loadData() {
   const tbody   = document.getElementById('tbody');
 
   if (!from || !to) { showToast('Select date range', 'warning'); return; }
-  tbody.innerHTML = '<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
+
+  const includeLoginOut = document.getElementById('chk-loginout')?.checked || false;
 
   try {
     let q = db.from('daily_performance')
@@ -226,16 +234,44 @@ async function loadData() {
 
     if (agentId) q = q.eq('agent_id', agentId);
 
+    // Fetch schedule data for login/logout comparison
+    let scheduleMap = {};
+    if (includeLoginOut) {
+      const { data: schData } = await db.from('schedule')
+        .select('agent_id, shift_date, shift_type_id, shift_types(start_time, end_time)')
+        .gte('shift_date', from).lte('shift_date', to)
+        .eq('day_type', 'Work');
+      (schData || []).forEach(s => {
+        if (s.shift_types) scheduleMap[`${s.agent_id}_${s.shift_date}`] = s.shift_types;
+      });
+    }
+
     const { data, error } = await q;
     if (error) throw error;
+
+    const loginTol = CFG.tolerance;
+    const logoutTol = CFG.tolerance;
 
     tableData = (data || []).map(r => {
       const breakMin = Math.round(((r.personal_break_sec || 0) + (r.work_pause_sec || 0)) / 60);
       const wcMin    = Math.round((r.wc_sec || 0) / 60);
       const overBreak = Math.max(0, breakMin - CFG.breakBudget);
       const overWC    = Math.max(0, wcMin - CFG.wcBudget);
-      const isViolation = overBreak > CFG.tolerance || overWC > CFG.tolerance;
-      return { ...r, breakMin, wcMin, overBreak, overWC, isViolation };
+
+      let lateLogin = 0, earlyLogout = 0;
+      const sch = scheduleMap[`${r.agent_id}_${r.perf_date}`];
+      if (includeLoginOut && sch && r.login_time && sch.start_time) {
+        const diff = timeToMin(r.login_time) - timeToMin(sch.start_time);
+        if (diff > loginTol) lateLogin = Math.round(diff);
+      }
+      if (includeLoginOut && sch && r.logout_time && sch.end_time) {
+        const diff = timeToMin(sch.end_time) - timeToMin(r.logout_time);
+        if (diff > logoutTol) earlyLogout = Math.round(diff);
+      }
+
+      const isViolation = overBreak > CFG.tolerance || overWC > CFG.tolerance ||
+                          (includeLoginOut && (lateLogin > 0 || earlyLogout > 0));
+      return { ...r, breakMin, wcMin, overBreak, overWC, lateLogin, earlyLogout, isViolation, _sch: sch };
     });
 
     renderTable();
@@ -248,13 +284,23 @@ async function loadData() {
   }
 }
 
+// ── HELPERS ──
+function timeToMin(t) {
+  if (!t) return 0;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+function fmtTime(t) { return t ? t.substring(0, 5) : '—'; }
+
 // ── RENDER TABLE ──
 function renderTable() {
   const tbody = document.getElementById('tbody');
   if (!tableData.length) {
-    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">✨</span>No data found for this period</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><span class="empty-icon">✨</span>No data found for this period</div></td></tr>';
     return;
   }
+
+  const includeLoginOut = document.getElementById('chk-loginout')?.checked || false;
 
   tbody.innerHTML = tableData.map(r => {
     const breakPct = Math.min(100, Math.round((r.breakMin / CFG.breakBudget) * 100));
@@ -262,6 +308,11 @@ function renderTable() {
     const breakCls = r.overBreak > CFG.tolerance ? 'budget-over' : r.overBreak > 0 ? 'budget-warn' : 'budget-ok';
     const wcCls    = r.overWC > CFG.tolerance ? 'budget-over' : r.overWC > 0 ? 'budget-warn' : 'budget-ok';
     const pillCls  = c => c > CFG.tolerance ? 'over' : c > 0 ? 'warn' : 'ok';
+
+    const loginColor  = r.lateLogin > 0 ? '#EF4444' : 'var(--muted)';
+    const logoutColor = r.earlyLogout > 0 ? '#EF4444' : 'var(--muted)';
+    const loginLabel  = r.login_time ? fmtTime(r.login_time) + (r.lateLogin > 0 ? ` (+${r.lateLogin}m)` : '') : '—';
+    const logoutLabel = r.logout_time ? fmtTime(r.logout_time) + (r.earlyLogout > 0 ? ` (-${r.earlyLogout}m)` : '') : '—';
 
     const statusBadge = r.isViolation
       ? '<span class="badge badge-danger">⚠ Over</span>'
@@ -277,6 +328,8 @@ function renderTable() {
           <span style="font-weight:700;font-size:13px;">${r.agent_name}</span>
         </div>
       </td>
+      <td style="font-family:monospace;font-size:11px;font-weight:700;color:${loginColor};">${loginLabel}</td>
+      <td style="font-family:monospace;font-size:11px;font-weight:700;color:${logoutColor};">${logoutLabel}</td>
       <td><span class="min-pill ${pillCls(r.overBreak)}">${r.breakMin}m / ${CFG.breakBudget}m</span></td>
       <td>
         <div class="${breakCls}" title="${r.breakMin}m of ${CFG.breakBudget}m">
@@ -325,11 +378,15 @@ async function runAutoCheck() {
     const to   = document.getElementById('f-to').value;
     const createdBy = session?.username || 'Auto-Check';
 
+    const includeLoginOut = document.getElementById('chk-loginout')?.checked || false;
+    const devTypes = ['Over Break', 'Over WC'];
+    if (includeLoginOut) devTypes.push('Late Login', 'Early Logout');
+
     // Fetch existing deviations for this period to avoid duplicates
     const { data: existing } = await db.from('adherence_deviations')
       .select('agent_id, deviation_date, deviation_type, deviation_slot, is_waived, id')
       .gte('deviation_date', from).lte('deviation_date', to)
-      .in('deviation_type', ['Over Break', 'Over WC']);
+      .in('deviation_type', devTypes);
 
     const existingMap = new Map(
       (existing || []).map(d => [`${d.agent_id}_${d.deviation_date}_${d.deviation_type}`, d])
@@ -374,6 +431,40 @@ async function runAutoCheck() {
       } else if (wcEx && !wcEx.is_waived) {
         toDelete.push(wcEx.id);
       }
+
+      // Late Login (only when toggle is on)
+      if (includeLoginOut && r.lateLogin > 0) {
+        const llKey = `${r.agent_id}_${r.perf_date}_Late Login`;
+        const llEx  = existingMap.get(llKey);
+        if (!llEx) {
+          toInsert.push({
+            agent_id: r.agent_id, agent_name: r.agent_name,
+            deviation_date: r.perf_date, deviation_type: 'Late Login',
+            scheduled_value: r._sch?.start_time?.substring(0,5) || '—',
+            actual_value: r.login_time?.substring(0,5) || '—',
+            deviation_minutes: r.lateLogin, deviation_slot: 'login',
+            notes: `Login: ${r.login_time?.substring(0,5)} vs scheduled ${r._sch?.start_time?.substring(0,5)} (+${r.lateLogin}m)`,
+            source: 'Auto', created_by: createdBy, is_waived: false,
+          });
+        }
+      }
+
+      // Early Logout (only when toggle is on)
+      if (includeLoginOut && r.earlyLogout > 0) {
+        const elKey = `${r.agent_id}_${r.perf_date}_Early Logout`;
+        const elEx  = existingMap.get(elKey);
+        if (!elEx) {
+          toInsert.push({
+            agent_id: r.agent_id, agent_name: r.agent_name,
+            deviation_date: r.perf_date, deviation_type: 'Early Logout',
+            scheduled_value: r._sch?.end_time?.substring(0,5) || '—',
+            actual_value: r.logout_time?.substring(0,5) || '—',
+            deviation_minutes: r.earlyLogout, deviation_slot: 'logout',
+            notes: `Logout: ${r.logout_time?.substring(0,5)} vs scheduled ${r._sch?.end_time?.substring(0,5)} (-${r.earlyLogout}m)`,
+            source: 'Auto', created_by: createdBy, is_waived: false,
+          });
+        }
+      }
     });
 
     const parts = [];
@@ -407,6 +498,10 @@ function exportExcel() {
   if (!tableData.length) { showToast('No data to export', 'warning'); return; }
   const rows = tableData.map(r => ({
     Date: r.perf_date, Agent: r.agent_name,
+    'Login': r.login_time ? r.login_time.substring(0,5) : '',
+    'Logout': r.logout_time ? r.logout_time.substring(0,5) : '',
+    'Late Login (min)': r.lateLogin || 0,
+    'Early Logout (min)': r.earlyLogout || 0,
     'Break Used (min)': r.breakMin, 'Break Budget': CFG.breakBudget,
     'Over Break': r.overBreak > 0 ? r.overBreak : 0,
     'WC Used (min)': r.wcMin, 'WC Budget': CFG.wcBudget,
