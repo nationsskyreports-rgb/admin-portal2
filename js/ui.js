@@ -523,3 +523,198 @@ async function markAllRequestsRead() {
 }
 
 document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshRequestsBadge, 400); });
+
+
+// ═══════════════════════════════════════════
+// Command Palette (Cmd+K / Ctrl+K)
+// ═══════════════════════════════════════════
+(function initCommandPalette() {
+
+  const ALL_PAGES = [
+    { label: 'Dashboard',      icon: 'fa-tachometer-alt', key: 'dashboard',      tab: 'Core',       href: 'index.html' },
+    { label: 'Agents',         icon: 'fa-users',          key: 'agents',         tab: 'Core',       href: 'pages/agents.html' },
+    { label: 'Schedule',       icon: 'fa-calendar-alt',   key: 'schedule',       tab: 'Core',       href: 'pages/schedule.html' },
+    { label: 'Schedule Audit', icon: 'fa-chart-gantt',    key: 'schedule-audit', tab: 'Core',       href: 'pages/schedule-audit.html' },
+    { label: 'Annual Leave',   icon: 'fa-umbrella-beach', key: 'annual-leave',   tab: 'Core',       href: 'pages/annual-leave.html' },
+    { label: 'Breaks',         icon: 'fa-coffee',         key: 'breaks',         tab: 'Core',       href: 'pages/breaks.html' },
+    { label: 'Requests',       icon: 'fa-file-alt',       key: 'requests',       tab: 'Core',       href: 'pages/requests.html' },
+    { label: 'KPIs',           icon: 'fa-chart-line',     key: 'kpis',           tab: 'Operations', href: 'pages/kpis.html' },
+    { label: 'Quality',        icon: 'fa-star',           key: 'quality',        tab: 'Operations', href: 'pages/quality.html' },
+    { label: 'Break Adherence',icon: 'fa-stopwatch',      key: 'adherence-new',  tab: 'Operations', href: 'pages/adherence-new.html' },
+    { label: 'Excuses',        icon: 'fa-clock',          key: 'excuses',        tab: 'Operations', href: 'pages/excuses.html' },
+    { label: 'Waiving',        icon: 'fa-hand-holding-heart', key: 'waiving',    tab: 'Operations', href: 'pages/waiving.html' },
+    { label: 'Call Log',       icon: 'fa-phone-alt',      key: 'calllog',        tab: 'Operations', href: 'pages/calllog.html' },
+    { label: 'CL Settings',   icon: 'fa-sitemap',        key: 'calllog-settings',tab: 'Operations', href: 'pages/calllog-settings.html' },
+    { label: 'FCR Analytics',  icon: 'fa-redo',           key: 'fcr',            tab: 'Operations', href: 'pages/fcr.html' },
+    { label: 'xCALLY Live',   icon: 'fa-satellite-dish',  key: 'xcally-live',    tab: 'Operations', href: 'pages/xcally-live.html' },
+    { label: 'xCALLY Import', icon: 'fa-upload',          key: 'xcally-import',  tab: 'Operations', href: 'pages/xcally-import.html' },
+    { label: 'xCALLY Reports',icon: 'fa-chart-pie',       key: 'xcally-reports', tab: 'Operations', href: 'pages/xcally-reports.html' },
+    { label: 'Reports',       icon: 'fa-chart-bar',       key: 'reports',        tab: 'Admin',      href: 'pages/reports.html' },
+    { label: 'HR Report',     icon: 'fa-file-medical-alt',key: 'hr-report',      tab: 'Admin',      href: 'pages/hr-report.html' },
+    { label: 'Audit Log',     icon: 'fa-clipboard-list',  key: 'audit-log',      tab: 'Admin',      href: 'pages/audit-log.html' },
+    { label: 'Reference',     icon: 'fa-database',        key: 'reference',      tab: 'Admin',      href: 'pages/reference.html' },
+    { label: 'Users',         icon: 'fa-user-shield',     key: 'users',          tab: 'Admin',      href: 'pages/users.html' },
+  ];
+
+  let selectedIdx = 0;
+  let filteredItems = [];
+
+  function getBase() {
+    const path = window.location.pathname;
+    const isRoot = path.endsWith('index.html') || path.endsWith('/admin/') || path.endsWith('/admin');
+    return isRoot ? '' : '../';
+  }
+
+  function getFilteredPages(query) {
+    const _session = (typeof getSession === 'function') ? getSession() : null;
+    let pages = ALL_PAGES.filter(p => {
+      if (!_session) return false;
+      return (typeof hasPermission === 'function') ? hasPermission(_session, p.key) : true;
+    });
+    if (query) {
+      const q = query.toLowerCase();
+      pages = pages.filter(p => p.label.toLowerCase().includes(q) || p.tab.toLowerCase().includes(q));
+    }
+    return pages;
+  }
+
+  function render(query) {
+    const results = document.getElementById('cmdk-results');
+    if (!results) return;
+    filteredItems = getFilteredPages(query);
+    selectedIdx = Math.min(selectedIdx, Math.max(0, filteredItems.length - 1));
+
+    if (!filteredItems.length) {
+      results.innerHTML = '<div class="cmdk-empty">No pages found</div>';
+      return;
+    }
+
+    const base = getBase();
+    const grouped = {};
+    filteredItems.forEach(p => {
+      if (!grouped[p.tab]) grouped[p.tab] = [];
+      grouped[p.tab].push(p);
+    });
+
+    let html = '';
+    let globalIdx = 0;
+    for (const [tab, pages] of Object.entries(grouped)) {
+      html += `<div class="cmdk-group-label">${tab}</div>`;
+      for (const p of pages) {
+        const sel = globalIdx === selectedIdx ? 'selected' : '';
+        html += `
+          <a class="cmdk-item ${sel}" href="${base}${p.href}" data-idx="${globalIdx}">
+            <div class="cmdk-item-icon"><i class="fas ${p.icon}"></i></div>
+            <div class="cmdk-item-label">${p.label}</div>
+            <div class="cmdk-item-tab">${p.tab}</div>
+          </a>`;
+        globalIdx++;
+      }
+    }
+    results.innerHTML = html;
+
+    // Scroll selected into view
+    const sel = results.querySelector('.cmdk-item.selected');
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+  }
+
+  function open() {
+    let overlay = document.getElementById('cmdk-overlay');
+    if (!overlay) inject();
+    overlay = document.getElementById('cmdk-overlay');
+    if (!overlay) return;
+    overlay.classList.add('open');
+    selectedIdx = 0;
+    const input = document.getElementById('cmdk-input');
+    if (input) { input.value = ''; input.focus(); }
+    render('');
+  }
+
+  function close() {
+    const overlay = document.getElementById('cmdk-overlay');
+    if (overlay) overlay.classList.remove('open');
+  }
+
+  function navigate() {
+    if (filteredItems[selectedIdx]) {
+      const base = getBase();
+      window.location.href = base + filteredItems[selectedIdx].href;
+    }
+  }
+
+  function inject() {
+    const html = `
+      <div class="cmdk-overlay" id="cmdk-overlay">
+        <div class="cmdk-box">
+          <div class="cmdk-input-wrap">
+            <i class="fas fa-search"></i>
+            <input class="cmdk-input" id="cmdk-input" placeholder="Search pages…" autocomplete="off">
+            <span class="cmdk-kbd">ESC</span>
+          </div>
+          <div class="cmdk-results" id="cmdk-results"></div>
+          <div class="cmdk-footer">
+            <span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span>
+            <span><kbd>↵</kbd> open</span>
+            <span><kbd>esc</kbd> close</span>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    // Events
+    const overlay = document.getElementById('cmdk-overlay');
+    const input   = document.getElementById('cmdk-input');
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+
+    input.addEventListener('input', () => {
+      selectedIdx = 0;
+      render(input.value.trim());
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIdx = Math.min(selectedIdx + 1, filteredItems.length - 1);
+        render(input.value.trim());
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIdx = Math.max(selectedIdx - 1, 0);
+        render(input.value.trim());
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        navigate();
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    // Mouse hover on items
+    document.getElementById('cmdk-results').addEventListener('mousemove', (e) => {
+      const item = e.target.closest('.cmdk-item');
+      if (item && item.dataset.idx !== undefined) {
+        selectedIdx = parseInt(item.dataset.idx);
+        render(input.value.trim());
+      }
+    });
+  }
+
+  // Global keyboard shortcut
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      const overlay = document.getElementById('cmdk-overlay');
+      if (overlay && overlay.classList.contains('open')) {
+        close();
+      } else {
+        open();
+      }
+    }
+  });
+
+  // Expose globally
+  window.openCommandPalette = open;
+
+})();
