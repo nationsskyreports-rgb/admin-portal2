@@ -1,16 +1,125 @@
 // ═══════════════════════════════════════════
-// NOS Admin — UI Helpers
+// NOS Admin — UI Helpers (upgraded UX v3)
 // ═══════════════════════════════════════════
-function showToast(msg, type = 'success') {
+
+// ── Auto-inject toast container + prompt modal if missing ──
+document.addEventListener('DOMContentLoaded', () => {
+  if (!document.getElementById('toast-container')) {
+    const tc = document.createElement('div');
+    tc.id = 'toast-container';
+    document.body.appendChild(tc);
+  }
+  if (!document.getElementById('nos-prompt-overlay')) {
+    const html = `
+      <div class="prompt-overlay" id="nos-prompt-overlay">
+        <div class="prompt-box">
+          <div class="prompt-title" id="nos-prompt-title">Input</div>
+          <div class="prompt-desc" id="nos-prompt-desc"></div>
+          <input class="prompt-input" id="nos-prompt-input" autocomplete="off">
+          <div class="prompt-btns">
+            <button class="btn btn-ghost" id="nos-prompt-cancel">Cancel</button>
+            <button class="btn btn-primary" id="nos-prompt-ok">Confirm</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+});
+
+// ═══════════════════════════════════════════
+// Toast Notifications (upgraded with progress bar + close)
+// ═══════════════════════════════════════════
+function showToast(msg, type = 'success', duration = 4000) {
   const container = document.getElementById('toast-container');
   if (!container) return;
-  const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+
+  const icons = {
+    success: 'fa-check',
+    error:   'fa-times',
+    warning: 'fa-exclamation',
+    info:    'fa-info'
+  };
+  const titles = {
+    success: 'Success',
+    error:   'Error',
+    warning: 'Warning',
+    info:    'Info'
+  };
+
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  toast.innerHTML = `<span>${icons[type]||'✅'}</span><span>${msg}</span>`;
+  toast.innerHTML = `
+    <div class="toast-icon"><i class="fas ${icons[type] || icons.info}"></i></div>
+    <div class="toast-content">
+      <div class="toast-title">${titles[type] || 'Notice'}</div>
+      <div class="toast-msg">${msg}</div>
+    </div>
+    <button class="toast-close" onclick="this.closest('.toast').remove()"><i class="fas fa-times"></i></button>
+    <div class="toast-progress" style="animation-duration:${duration}ms;"></div>`;
+
   container.appendChild(toast);
-  setTimeout(() => { toast.classList.add('hide'); setTimeout(()=>toast.remove(),400); }, 3500);
+
+  // Pause progress on hover
+  toast.addEventListener('mouseenter', () => {
+    const bar = toast.querySelector('.toast-progress');
+    if (bar) bar.style.animationPlayState = 'paused';
+  });
+  toast.addEventListener('mouseleave', () => {
+    const bar = toast.querySelector('.toast-progress');
+    if (bar) bar.style.animationPlayState = 'running';
+  });
+
+  setTimeout(() => {
+    if (!toast.parentNode) return;
+    toast.classList.add('hide');
+    setTimeout(() => toast.remove(), 350);
+  }, duration);
 }
+
+// ═══════════════════════════════════════════
+// Custom Prompt Modal (replaces native prompt())
+// ═══════════════════════════════════════════
+function showPrompt(title, defaultValue, description) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('nos-prompt-overlay');
+    const input   = document.getElementById('nos-prompt-input');
+    const titleEl = document.getElementById('nos-prompt-title');
+    const descEl  = document.getElementById('nos-prompt-desc');
+    const okBtn   = document.getElementById('nos-prompt-ok');
+    const cancelBtn = document.getElementById('nos-prompt-cancel');
+
+    if (!overlay) { resolve(prompt(title, defaultValue)); return; }
+
+    titleEl.textContent = title || 'Input';
+    descEl.textContent  = description || '';
+    descEl.style.display = description ? '' : 'none';
+    input.value = defaultValue || '';
+    overlay.classList.add('open');
+
+    setTimeout(() => { input.focus(); input.select(); }, 100);
+
+    function cleanup() {
+      overlay.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+    }
+    function onOk() { cleanup(); resolve(input.value.trim()); }
+    function onCancel() { cleanup(); resolve(null); }
+    function onKey(e) {
+      if (e.key === 'Enter') onOk();
+      if (e.key === 'Escape') onCancel();
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKey);
+  });
+}
+
+// ═══════════════════════════════════════════
+// Modal
+// ═══════════════════════════════════════════
 function openModal(title, msg, onConfirm) {
   document.getElementById('modal-title').innerText = title;
   document.getElementById('modal-msg').innerText = msg;
@@ -20,6 +129,10 @@ function openModal(title, msg, onConfirm) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
 }
+
+// ═══════════════════════════════════════════
+// Slide Panel
+// ═══════════════════════════════════════════
 function openPanel(title) {
   if (title !== undefined) document.getElementById('panel-title').innerText = title;
   document.getElementById('panel-overlay').classList.add('open');
@@ -29,6 +142,10 @@ function closePanel() {
   document.getElementById('panel-overlay').classList.remove('open');
   document.getElementById('slide-panel').classList.remove('open');
 }
+
+// ═══════════════════════════════════════════
+// Utility Helpers
+// ═══════════════════════════════════════════
 function loading(id) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><div>Loading...</div></div>`;
@@ -66,9 +183,8 @@ function debounce(fn, delay=300) {
 }
 
 // ═══════════════════════════════════════════
-// NOS Admin — Theme Toggle
+// Theme Toggle
 // ═══════════════════════════════════════════
-
 (function initTheme() {
   const saved = localStorage.getItem('nos-theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
@@ -94,14 +210,13 @@ function applyThemeIcon() {
 }
 
 // ═══════════════════════════════════════════
-// NOS Admin — Tabbed Sidebar
+// Tabbed Sidebar
 // ═══════════════════════════════════════════
 function renderSidebar() {
   const path   = window.location.pathname;
   const isRoot = path.endsWith('index.html') || path.endsWith('/admin/') || path.endsWith('/admin');
   const base   = isRoot ? '' : '../';
 
-  // ── تعريف التابات والصفحات ──
   const tabs = [
     {
       id: 'core',
@@ -161,7 +276,6 @@ function renderSidebar() {
     return (typeof hasPermission === 'function') ? hasPermission(_session, item.key) : true;
   }
 
-  // فلتر كل تاب: شيل العناصر اللي مش مسموحة + شيل section headers الفاضية
   const filteredTabs = tabs.map(tab => {
     const allowed = tab.items.filter(isAllowed);
     const cleaned = allowed.filter((item, i) => {
@@ -173,7 +287,7 @@ function renderSidebar() {
     return { ...tab, items: cleaned };
   }).filter(tab => tab.items.filter(i => !i.section).length > 0);
 
-  // ── تحديد التاب الحالي من الصفحة المفتوحة ──
+  // ── تحديد التاب الحالي ──
   const currentFile = path.split('/').pop() || 'index.html';
   let autoTabId = filteredTabs.length ? filteredTabs[0].id : 'core';
   for (const tab of filteredTabs) {
@@ -183,12 +297,10 @@ function renderSidebar() {
       if (currentFile === itemFile) { autoTabId = tab.id; break; }
     }
   }
-
-  // استخدم التاب بتاع الصفحة الحالية (أهم من localStorage)
   const activeTabId = autoTabId;
   localStorage.setItem('nos-sidebar-tab', activeTabId);
 
-  // ── بناء HTML التابات ──
+  // ── بناء HTML ──
   let tabsHtml = '';
   filteredTabs.forEach(tab => {
     const isActive = tab.id === activeTabId ? 'active' : '';
@@ -199,7 +311,6 @@ function renderSidebar() {
       </button>`;
   });
 
-  // ── بناء HTML لكل بانل تاب ──
   let panelsHtml = '';
   filteredTabs.forEach(tab => {
     const isActive = tab.id === activeTabId ? 'active' : '';
@@ -222,7 +333,6 @@ function renderSidebar() {
     panelsHtml += `<div class="sb-panel ${isActive}" data-panel="${tab.id}">${navHtml}</div>`;
   });
 
-  // ── تجميع السايدبار ──
   const aside = document.getElementById('sidebar');
   if (!aside) return;
 
@@ -254,20 +364,17 @@ function renderSidebar() {
       </button>
     </div>`;
 
-  // ── تفعيل التابات ──
+  // ── Tab switching ──
   aside.querySelectorAll('.sb-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       const tabId = btn.dataset.tab;
-      // تحديث الزرار النشط
       aside.querySelectorAll('.sb-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      // تحديث البانل النشط
       aside.querySelectorAll('.sb-panel').forEach(p => {
         p.classList.remove('active');
         if (p.dataset.panel === tabId) p.classList.add('active');
       });
       localStorage.setItem('nos-sidebar-tab', tabId);
-      // مسح السيرش
       const searchInput = aside.querySelector('.sb-search');
       if (searchInput && searchInput.value) {
         searchInput.value = '';
@@ -276,13 +383,12 @@ function renderSidebar() {
     });
   });
 
-  // ── تفعيل البحث ──
+  // ── Search ──
   const searchInput = aside.querySelector('.sb-search');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       filterSidebarItems(e.target.value.trim().toLowerCase());
     });
-    // Escape يمسح البحث
     searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         searchInput.value = '';
@@ -292,30 +398,23 @@ function renderSidebar() {
     });
   }
 
-  // Scroll active nav item into view
   const activeItem = aside.querySelector('.nav-item.active');
   if (activeItem) {
-    setTimeout(() => {
-      activeItem.scrollIntoView({ block: 'center', behavior: 'instant' });
-    }, 50);
+    setTimeout(() => activeItem.scrollIntoView({ block: 'center', behavior: 'instant' }), 50);
   }
 }
 
-// ── فلترة السايدبار بالبحث ──
 function filterSidebarItems(query) {
   const aside = document.getElementById('sidebar');
   if (!aside) return;
-
-  const panels   = aside.querySelectorAll('.sb-panel');
-  const tabBtns  = aside.querySelectorAll('.sb-tab');
+  const panels  = aside.querySelectorAll('.sb-panel');
+  const tabBtns = aside.querySelectorAll('.sb-tab');
 
   if (!query) {
-    // رجّع الحالة الطبيعية
     panels.forEach(p => {
       p.querySelectorAll('.nav-item').forEach(item => { item.style.display = ''; });
       p.querySelectorAll('.nav-section').forEach(sec => { sec.style.display = ''; });
     });
-    // اظهر التاب اللي متخزن
     const savedTab = localStorage.getItem('nos-sidebar-tab') || 'core';
     tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === savedTab));
     panels.forEach(p => p.classList.toggle('active', p.dataset.panel === savedTab));
@@ -324,7 +423,6 @@ function filterSidebarItems(query) {
     return;
   }
 
-  // أثناء البحث: فعّل كل البانلز واخفي التابات بصرياً
   aside.querySelector('.sb-tabs-strip').style.opacity = '0.4';
   aside.querySelector('.sb-tabs-strip').style.pointerEvents = 'none';
   panels.forEach(p => p.classList.add('active'));
@@ -339,7 +437,7 @@ function filterSidebarItems(query) {
 }
 
 // ═══════════════════════════════════════════
-// NOS Admin — Mobile Sidebar Toggle
+// Mobile Sidebar Drawer
 // ═══════════════════════════════════════════
 function toggleMobileSidebar() {
   const sidebar = document.getElementById('sidebar');
@@ -357,9 +455,7 @@ function toggleMobileSidebar() {
   }
 }
 
-// Auto-inject mobile hamburger + overlay if not present
 document.addEventListener('DOMContentLoaded', () => {
-  // Hamburger button
   if (!document.getElementById('mobile-hamburger')) {
     const ham = document.createElement('button');
     ham.id = 'mobile-hamburger';
@@ -368,7 +464,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ham.onclick = toggleMobileSidebar;
     document.body.appendChild(ham);
   }
-  // Overlay
   if (!document.getElementById('mobile-overlay')) {
     const ov = document.createElement('div');
     ov.id = 'mobile-overlay';
@@ -379,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ═══════════════════════════════════════════
-// NOS Admin — Date Helpers
+// Date Helpers
 // ═══════════════════════════════════════════
 function getWeekStart() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
@@ -403,8 +498,7 @@ function getToday() {
 
 
 // ═══════════════════════════════════════════
-// NOS Admin — Requests "unread" notification badge
-// localStorage-based (no schema change): badge = requests created after last-seen.
+// Requests notification badge
 // ═══════════════════════════════════════════
 const REQ_SEEN_KEY = 'nos_req_seen_at';
 
@@ -419,15 +513,13 @@ async function refreshRequestsBadge() {
     const n = count || 0;
     badge.innerText = n;
     badge.style.display = n > 0 ? '' : 'none';
-  } catch (e) { /* silent — badge stays as-is */ }
+  } catch (e) { /* silent */ }
 }
 
-// Mark every request seen up to now → clears the badge.
 async function markAllRequestsRead() {
   localStorage.setItem(REQ_SEEN_KEY, new Date().toISOString());
   await refreshRequestsBadge();
-  if (typeof showToast === 'function') showToast('All requests marked as read ✅', 'success');
+  if (typeof showToast === 'function') showToast('All requests marked as read', 'success');
 }
 
-// Auto-refresh the badge shortly after each page renders the sidebar.
 document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshRequestsBadge, 400); });
