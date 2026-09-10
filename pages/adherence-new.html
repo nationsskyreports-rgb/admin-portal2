@@ -4,21 +4,51 @@
 <link rel="icon" type="image/png" href="../logo.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NOS Admin — Break Adherence (New)</title>
+<title>NOS Admin — Break Adherence</title>
 <link rel="stylesheet" href="../css/main.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+/* ── Budget bars ── */
 .budget-bar { height:10px; border-radius:5px; background:var(--surface2); overflow:hidden; min-width:80px; }
 .budget-bar-fill { height:100%; border-radius:5px; transition:width .3s; }
 .budget-ok   .budget-bar-fill { background:linear-gradient(90deg,#10B981,#34D399); }
 .budget-warn .budget-bar-fill { background:linear-gradient(90deg,#F59E0B,#FBBF24); }
 .budget-over .budget-bar-fill { background:linear-gradient(90deg,#EF4444,#F87171); }
-.min-pill { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:800; font-family:'IBM Plex Mono',monospace; }
+
+/* ── Pills ── */
+.min-pill { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:800; font-family:'JetBrains Mono',monospace; }
 .min-pill.ok   { background:rgba(16,185,129,.12); color:#10B981; border:1px solid rgba(16,185,129,.2); }
 .min-pill.warn { background:rgba(245,158,11,.12); color:#F59E0B; border:1px solid rgba(245,158,11,.2); }
 .min-pill.over { background:rgba(239,68,68,.12);  color:#EF4444; border:1px solid rgba(239,68,68,.2); }
-.cfg-input { width:72px; padding:6px 10px; text-align:center; font-family:monospace; font-size:14px; font-weight:700; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+
+/* ── Config input ── */
+.cfg-input { width:72px; padding:6px 10px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; border-radius:var(--r-sm); border:1px solid var(--border); background:var(--surface2); color:var(--text); transition:border-color .15s; }
+.cfg-input:focus { border-color:var(--accent); outline:none; box-shadow:0 0 0 2px rgba(79,138,249,.1); }
+
+/* ── Config card ── */
+.config-strip {
+  display:flex; align-items:center; flex-wrap:wrap; gap:16px;
+  padding:14px 20px;
+}
+.config-label { font-weight:800; color:var(--accent); font-size:13px; display:flex; align-items:center; gap:6px; }
+.config-field { display:flex; align-items:center; gap:6px; }
+.config-field span { font-size:12px; color:var(--muted); }
+
+/* ── Filter bar ── */
+.filter-strip {
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+  padding:14px 20px;
+}
+.filter-strip label { font-size:12px; font-weight:700; color:var(--muted); }
+.checkbox-label {
+  display:flex; align-items:center; gap:6px; cursor:pointer;
+  font-size:12px; font-weight:600; color:var(--muted);
+  background:var(--surface2); border:1px solid var(--border); border-radius:var(--r-sm); padding:7px 12px;
+  transition:border-color .15s;
+}
+.checkbox-label:hover { border-color:var(--border2); }
+.checkbox-label input { accent-color:var(--accent); width:15px; height:15px; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -29,11 +59,11 @@
 
     <div class="topbar">
       <div class="topbar-left">
-        <button class="sidebar-toggle" onclick="document.querySelector('.admin-layout').classList.toggle('sidebar-collapsed')"><i class="fas fa-bars"></i></button>
         <div class="page-title">Break Adherence</div>
         <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Budget-Based Tracking</div>
       </div>
       <div class="topbar-right">
+        <button class="topbar-btn" onclick="loadData()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
         <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fas fa-moon"></i></button>
         <div class="admin-chip">
           <div class="admin-avatar" id="admin-avatar">A</div>
@@ -45,78 +75,86 @@
     <div class="page-content">
 
       <!-- ═══ CONFIG BAR ═══ -->
-      <div class="card" style="margin-bottom:20px;">
-        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:16px 20px;">
-          <div style="font-weight:800;color:var(--gold);font-size:13px;"><i class="fas fa-cog"></i> Budget Config</div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:12px;color:var(--muted);">Break Budget:</span>
-            <input type="number" id="cfg-break" class="cfg-input" value="60"> <span style="font-size:11px;color:var(--muted);">min</span>
+      <div class="section-card fade-up" style="margin-bottom:16px;">
+        <div class="config-strip">
+          <div class="config-label"><i class="fas fa-cog"></i> Budget Config</div>
+          <div class="config-field">
+            <span>Break Budget:</span>
+            <input type="number" id="cfg-break" class="cfg-input" value="60"> <span>min</span>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:12px;color:var(--muted);">WC Budget:</span>
-            <input type="number" id="cfg-wc" class="cfg-input" value="15"> <span style="font-size:11px;color:var(--muted);">min</span>
+          <div class="config-field">
+            <span>WC Budget:</span>
+            <input type="number" id="cfg-wc" class="cfg-input" value="15"> <span>min</span>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:12px;color:var(--muted);">Tolerance:</span>
-            <input type="number" id="cfg-tol" class="cfg-input" value="2" style="width:56px;"> <span style="font-size:11px;color:var(--muted);">min</span>
+          <div class="config-field">
+            <span>Tolerance:</span>
+            <input type="number" id="cfg-tol" class="cfg-input" value="2" style="width:56px;"> <span>min</span>
           </div>
           <button class="btn btn-primary btn-sm" onclick="saveConfig()"><i class="fas fa-save"></i> Save</button>
         </div>
       </div>
 
       <!-- ═══ FILTERS ═══ -->
-      <div class="card" style="margin-bottom:20px;">
-        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px 20px;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <label style="font-size:12px;font-weight:700;color:var(--muted);">From</label>
+      <div class="section-card fade-up" style="margin-bottom:16px;">
+        <div class="filter-strip">
+          <div class="config-field">
+            <label>From</label>
             <input type="date" id="f-from" class="form-input" style="width:auto;padding:8px 12px;">
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <label style="font-size:12px;font-weight:700;color:var(--muted);">To</label>
+          <div class="config-field">
+            <label>To</label>
             <input type="date" id="f-to" class="form-input" style="width:auto;padding:8px 12px;">
           </div>
           <select id="f-agent" class="form-input" style="width:auto;padding:8px 12px;">
             <option value="">All Agents</option>
           </select>
           <button class="btn btn-primary" onclick="loadData()"><i class="fas fa-search"></i> Load</button>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 12px;">
-            <input type="checkbox" id="chk-loginout" style="accent-color:var(--gold);width:16px;height:16px;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="chk-loginout">
             <span>Include Login/Logout</span>
           </label>
-          <button class="btn btn-warning" onclick="runAutoCheck()" id="auto-btn"><i class="fas fa-robot"></i> Auto-Check</button>
-          <button class="btn btn-info" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Export</button>
-          <span id="row-count" style="font-size:11px;color:var(--muted);margin-left:auto;"></span>
+          <button class="btn btn-ghost" onclick="runAutoCheck()" id="auto-btn"><i class="fas fa-robot"></i> Auto-Check</button>
+          <button class="btn btn-ghost" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Export</button>
+          <span id="row-count" style="font-size:11px;color:var(--muted);margin-left:auto;font-weight:600;"></span>
         </div>
       </div>
 
       <!-- ═══ KPIs ═══ -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;">
-        <div class="card" style="padding:16px;text-align:center;">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Total Records</div>
-          <div id="k-total" style="font-size:22px;font-weight:900;color:var(--text);margin-top:4px;">—</div>
+      <div class="kpi-grid fade-up" style="margin-bottom:16px;">
+        <div class="kpi-card gold">
+          <span class="kpi-icon">📊</span>
+          <div class="kpi-label">Total Records</div>
+          <div class="kpi-value" id="k-total">—</div>
         </div>
-        <div class="card" style="padding:16px;text-align:center;">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Violations</div>
-          <div id="k-violations" style="font-size:22px;font-weight:900;color:#EF4444;margin-top:4px;">—</div>
+        <div class="kpi-card red">
+          <span class="kpi-icon">⚠️</span>
+          <div class="kpi-label">Violations</div>
+          <div class="kpi-value" id="k-violations">—</div>
         </div>
-        <div class="card" style="padding:16px;text-align:center;">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Over-Break Min</div>
-          <div id="k-overbreak" style="font-size:22px;font-weight:900;color:#F59E0B;margin-top:4px;">—</div>
+        <div class="kpi-card orange">
+          <span class="kpi-icon">☕</span>
+          <div class="kpi-label">Over-Break Min</div>
+          <div class="kpi-value" id="k-overbreak">—</div>
         </div>
-        <div class="card" style="padding:16px;text-align:center;">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Over-WC Min</div>
-          <div id="k-overwc" style="font-size:22px;font-weight:900;color:#8B5CF6;margin-top:4px;">—</div>
+        <div class="kpi-card purple">
+          <span class="kpi-icon">🚻</span>
+          <div class="kpi-label">Over-WC Min</div>
+          <div class="kpi-value" id="k-overwc">—</div>
         </div>
-        <div class="card" style="padding:16px;text-align:center;">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px;">Compliance %</div>
-          <div id="k-compliance" style="font-size:22px;font-weight:900;color:#10B981;margin-top:4px;">—</div>
+        <div class="kpi-card green">
+          <span class="kpi-icon">✅</span>
+          <div class="kpi-label">Compliance %</div>
+          <div class="kpi-value" id="k-compliance">—</div>
         </div>
       </div>
 
       <!-- ═══ TABLE ═══ -->
-      <div class="card">
-        <div style="overflow-x:auto;">
-          <table class="data-table" style="min-width:900px;">
+      <div class="section-card fade-up">
+        <div class="section-header">
+          <div class="section-title"><i class="fas fa-table" style="color:var(--gold)"></i> Break & WC Records</div>
+        </div>
+        <div class="section-body no-pad" style="overflow-x:auto;">
+          <table class="nos-table" style="min-width:900px;">
             <thead>
               <tr>
                 <th>Date</th>
@@ -144,12 +182,15 @@
 </div>
 
 <!-- ═══ SHARED UI ═══ -->
-<div id="toast-container" class="toast-container"></div>
+<div id="toast-container"></div>
 <div class="modal-overlay" id="modal-overlay">
-  <div class="modal-card">
-    <h3 id="modal-title">Confirm</h3>
-    <p id="modal-msg"></p>
-    <div class="modal-actions">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Confirm</div>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-danger" id="modal-confirm">Confirm</button>
     </div>
@@ -174,13 +215,11 @@ let CFG = { breakBudget: 60, wcBudget: 15, tolerance: 2 };
 
 // ── INIT ──
 (async function init() {
-  // Load agents
   const { data: agents } = await db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name');
   allAgents = agents || [];
   const sel = document.getElementById('f-agent');
   allAgents.forEach(a => sel.add(new Option(a.formal_name, a.id)));
 
-  // Load config
   const { data: cfgRows } = await db.from('adherence_config').select('daily_break_budget,daily_wc_budget,break_tolerance').limit(1);
   if (cfgRows && cfgRows[0]) {
     CFG.breakBudget = cfgRows[0].daily_break_budget || 60;
@@ -191,7 +230,6 @@ let CFG = { breakBudget: 60, wcBudget: 15, tolerance: 2 };
   document.getElementById('cfg-wc').value    = CFG.wcBudget;
   document.getElementById('cfg-tol').value   = CFG.tolerance;
 
-  // Default dates: this month
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
   document.getElementById('f-from').value = today.slice(0,7) + '-01';
   document.getElementById('f-to').value   = today;
@@ -206,7 +244,7 @@ async function saveConfig() {
   const { error } = await db.from('adherence_config')
     .update({ daily_break_budget: breakB, daily_wc_budget: wcB, break_tolerance: tol,
               updated_by: session?.username || 'Admin', updated_at: new Date().toISOString() })
-    .not('id', 'is', null); // update all rows
+    .not('id', 'is', null);
 
   if (error) { showToast('Failed: ' + error.message, 'error'); return; }
   CFG = { breakBudget: breakB, wcBudget: wcB, tolerance: tol };
@@ -234,7 +272,6 @@ async function loadData() {
 
     if (agentId) q = q.eq('agent_id', agentId);
 
-    // Fetch schedule data for login/logout comparison
     let scheduleMap = {};
     if (includeLoginOut) {
       const { data: schData } = await db.from('schedule')
@@ -279,7 +316,7 @@ async function loadData() {
     document.getElementById('row-count').innerText = tableData.length + ' record(s)';
 
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="empty-icon">❌</span>${e.message}</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><span class="empty-icon">❌</span>${e.message}</div></td></tr>`;
     showToast('Failed: ' + e.message, 'error');
   }
 }
@@ -328,8 +365,8 @@ function renderTable() {
           <span style="font-weight:700;font-size:13px;">${r.agent_name}</span>
         </div>
       </td>
-      <td style="font-family:monospace;font-size:11px;font-weight:700;color:${loginColor};">${loginLabel}</td>
-      <td style="font-family:monospace;font-size:11px;font-weight:700;color:${logoutColor};">${logoutLabel}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${loginColor};">${loginLabel}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${logoutColor};">${logoutLabel}</td>
       <td><span class="min-pill ${pillCls(r.overBreak)}">${r.breakMin}m / ${CFG.breakBudget}m</span></td>
       <td>
         <div class="${breakCls}" title="${r.breakMin}m of ${CFG.breakBudget}m">
@@ -342,8 +379,8 @@ function renderTable() {
           <div class="budget-bar"><div class="budget-bar-fill" style="width:${wcPct}%;"></div></div>
         </div>
       </td>
-      <td style="font-family:monospace;font-weight:700;color:${r.overBreak > CFG.tolerance ? '#EF4444' : 'var(--muted)'};">${r.overBreak > 0 ? '+' + r.overBreak + 'm' : '—'}</td>
-      <td style="font-family:monospace;font-weight:700;color:${r.overWC > CFG.tolerance ? '#8B5CF6' : 'var(--muted)'};">${r.overWC > 0 ? '+' + r.overWC + 'm' : '—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${r.overBreak > CFG.tolerance ? '#EF4444' : 'var(--muted)'};">${r.overBreak > 0 ? '+' + r.overBreak + 'm' : '—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${r.overWC > CFG.tolerance ? '#8B5CF6' : 'var(--muted)'};">${r.overWC > 0 ? '+' + r.overWC + 'm' : '—'}</td>
       <td>${statusBadge}</td>
     </tr>`;
   }).join('');
@@ -365,7 +402,7 @@ function renderKPIs() {
   document.getElementById('k-compliance').style.color = compliance >= 90 ? '#10B981' : compliance >= 70 ? '#F59E0B' : '#EF4444';
 }
 
-// ── AUTO-CHECK — creates deviations ──
+// ── AUTO-CHECK ──
 async function runAutoCheck() {
   if (!tableData.length) { showToast('Load data first', 'warning'); return; }
 
@@ -382,7 +419,6 @@ async function runAutoCheck() {
     const devTypes = ['Over Break', 'Over WC'];
     if (includeLoginOut) devTypes.push('Late Login', 'Early Logout');
 
-    // Fetch existing deviations for this period to avoid duplicates
     const { data: existing } = await db.from('adherence_deviations')
       .select('agent_id, deviation_date, deviation_type, deviation_slot, is_waived, id')
       .gte('deviation_date', from).lte('deviation_date', to)
@@ -396,7 +432,6 @@ async function runAutoCheck() {
     const toDelete = [];
 
     tableData.forEach(r => {
-      // Over Break check
       const breakKey = `${r.agent_id}_${r.perf_date}_Over Break`;
       const breakEx  = existingMap.get(breakKey);
       if (r.overBreak > CFG.tolerance) {
@@ -414,7 +449,6 @@ async function runAutoCheck() {
         toDelete.push(breakEx.id);
       }
 
-      // Over WC check
       const wcKey = `${r.agent_id}_${r.perf_date}_Over WC`;
       const wcEx  = existingMap.get(wcKey);
       if (r.overWC > CFG.tolerance) {
@@ -432,7 +466,6 @@ async function runAutoCheck() {
         toDelete.push(wcEx.id);
       }
 
-      // Late Login (only when toggle is on)
       if (includeLoginOut && r.lateLogin > 0) {
         const llKey = `${r.agent_id}_${r.perf_date}_Late Login`;
         const llEx  = existingMap.get(llKey);
@@ -449,7 +482,6 @@ async function runAutoCheck() {
         }
       }
 
-      // Early Logout (only when toggle is on)
       if (includeLoginOut && r.earlyLogout > 0) {
         const elKey = `${r.agent_id}_${r.perf_date}_Early Logout`;
         const elEx  = existingMap.get(elKey);
@@ -483,7 +515,7 @@ async function runAutoCheck() {
       parts.push(`${toDelete.length} cleared`);
     }
 
-    showToast(parts.length ? `⚠️ ${parts.join(', ')}` : '✅ No changes — all up to date', parts.length ? 'warning' : 'success');
+    showToast(parts.length ? `${parts.join(', ')}` : 'No changes — all up to date', parts.length ? 'warning' : 'success');
 
   } catch(e) {
     showToast('Failed: ' + e.message, 'error');
