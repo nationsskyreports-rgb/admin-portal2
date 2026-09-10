@@ -9,26 +9,209 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-.tree-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:20px; }
-.tree-tab { padding:12px 20px; font-weight:700; font-size:13px; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; }
-.tree-tab:hover { color:var(--text); }
-.tree-tab.active { color:var(--gold); border-bottom-color:var(--gold); }
-.tree-section { display:none; }
-.tree-section.active { display:block; }
-.item-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); transition:background .15s; }
-.item-row:hover { background:rgba(212,175,55,.03); }
-.item-row:last-child { border-bottom:none; }
-.item-name { flex:1; font-weight:700; font-size:13px; }
-.item-type { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700; text-transform:uppercase; }
-.type-project { background:rgba(212,175,55,.12); color:var(--gold); border:1px solid rgba(212,175,55,.2); }
-.type-other   { background:rgba(59,130,246,.12); color:#3B82F6; border:1px solid rgba(59,130,246,.2); }
-.item-badge { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700; }
-.badge-cat { background:rgba(139,92,246,.12); color:#8B5CF6; border:1px solid rgba(139,92,246,.2); }
-.inline-form { display:flex; gap:8px; align-items:center; padding:12px 14px; background:var(--surface2); border-radius:12px; margin-bottom:14px; }
-.inline-form input, .inline-form select { padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:13px; font-family:inherit; }
-.inline-form input { flex:1; }
-.cat2-pick-row:hover { background:rgba(212,175,55,.06); }
-.cat2-pick-row:last-child { border-bottom:none !important; }
+/* ── Page-specific styles ── */
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface2);
+  border-radius: var(--r-md);
+  padding: 3px;
+  margin-bottom: 20px;
+}
+.settings-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+}
+.settings-tab:hover:not(.active) { color: var(--text-dim); background: var(--surface3); }
+.settings-tab.active { background: var(--accent-grad); color: #fff; }
+.settings-tab .tab-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.settings-tab.active .tab-count { background: rgba(255,255,255,0.2); color: #fff; }
+.settings-tab:not(.active) .tab-count { background: var(--surface3); color: var(--muted); }
+
+.settings-section { display: none; animation: fadeUp 0.2s ease; }
+.settings-section.active { display: block; }
+
+/* Add-bar */
+.add-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-bottom: 16px;
+}
+.add-bar input, .add-bar select {
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.add-bar input:focus, .add-bar select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(79, 138, 249, 0.08);
+}
+.add-bar input { flex: 1; min-width: 0; }
+.add-bar select { width: 120px; flex-shrink: 0; }
+
+/* Item list */
+.item-list { border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--border); }
+.item-list:empty { border: none; }
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  background: var(--surface);
+}
+.item-row:last-child { border-bottom: none; }
+.item-row:hover { background: var(--surface2); }
+.item-row.inactive { opacity: 0.45; }
+
+.item-type-badge {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.type-project { background: rgba(79,138,249,0.1); color: var(--accent); border: 1px solid rgba(79,138,249,0.2); }
+.type-other   { background: rgba(139,92,246,0.1); color: #8B5CF6; border: 1px solid rgba(139,92,246,0.2); }
+
+.item-name { flex: 1; font-weight: 600; font-size: 13px; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.item-row:hover .item-actions { opacity: 1; }
+
+.action-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+  color: var(--muted);
+}
+.action-btn:hover { border-color: var(--border2); color: var(--accent); background: var(--surface3); }
+.action-btn.danger:hover { color: var(--danger); border-color: rgba(240,82,82,0.3); }
+.action-btn.toggle-on { color: var(--success); }
+.action-btn.toggle-off { color: var(--danger); opacity: 0.8; }
+
+/* Section count chip */
+.section-count {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+/* Cat2 parent picker */
+.parent-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-bottom: 16px;
+}
+.parent-picker-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.parent-picker select {
+  flex: 1;
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.parent-picker select:focus { border-color: var(--accent); }
+
+/* Bulk + Pick panels */
+.expand-panel {
+  padding: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-bottom: 16px;
+  animation: fadeUp 0.2s ease;
+}
+.expand-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 10px;
+}
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.pick-item:last-child { border-bottom: none; }
+.pick-item:hover { background: rgba(79,138,249,0.04); }
+.pick-name { flex: 1; font-weight: 600; color: var(--text); }
+.pick-parents { font-size: 10px; color: var(--muted); text-align: right; }
 </style>
 </head>
 <body>
@@ -38,11 +221,11 @@
 
     <div class="topbar">
       <div class="topbar-left">
-        <button class="sidebar-toggle" onclick="document.querySelector('.admin-layout').classList.toggle('sidebar-collapsed')"><i class="fas fa-bars"></i></button>
         <div class="page-title">Call Log Settings</div>
-        <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Manage Projects & Categories</div>
+        <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Projects & Categories</div>
       </div>
       <div class="topbar-right">
+        <button class="topbar-btn" onclick="refreshAll()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
         <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fas fa-moon"></i></button>
         <div class="admin-chip">
           <div class="admin-avatar" id="admin-avatar">A</div>
@@ -52,21 +235,29 @@
     </div>
 
     <div class="page-content">
-      <div class="card" style="padding:0;">
+      <div class="section-card">
+        <div class="section-body">
 
-        <!-- ═══ TABS ═══ -->
-        <div class="tree-tabs" style="padding:0 20px;">
-          <div class="tree-tab active" onclick="switchTab('choose')"><i class="fas fa-list-ul" style="margin-right:6px;"></i> Choose Options</div>
-          <div class="tree-tab" onclick="switchTab('cat1')"><i class="fas fa-folder" style="margin-right:6px;"></i> Category 1</div>
-          <div class="tree-tab" onclick="switchTab('cat2')"><i class="fas fa-folder-tree" style="margin-right:6px;"></i> Category 2</div>
-        </div>
-
-        <div style="padding:0 20px 20px;">
+          <!-- ═══ TABS ═══ -->
+          <div class="settings-tabs">
+            <button class="settings-tab active" onclick="switchTab('choose')">
+              <i class="fas fa-list-ul"></i> Choose Options
+              <span class="tab-count" id="count-choose">0</span>
+            </button>
+            <button class="settings-tab" onclick="switchTab('cat1')">
+              <i class="fas fa-folder"></i> Category 1
+              <span class="tab-count" id="count-cat1">0</span>
+            </button>
+            <button class="settings-tab" onclick="switchTab('cat2')">
+              <i class="fas fa-folder-tree"></i> Category 2
+              <span class="tab-count" id="count-cat2">0</span>
+            </button>
+          </div>
 
           <!-- ═══ CHOOSE OPTIONS ═══ -->
-          <div class="tree-section active" id="sec-choose">
-            <div class="inline-form">
-              <input id="add-choose-name" placeholder="Option name…">
+          <div class="settings-section active" id="sec-choose">
+            <div class="add-bar">
+              <input id="add-choose-name" placeholder="Option name…" onkeydown="if(event.key==='Enter')addChoose()">
               <select id="add-choose-type">
                 <option value="project">Project</option>
                 <option value="other">Other</option>
@@ -77,61 +268,64 @@
           </div>
 
           <!-- ═══ CATEGORY 1 ═══ -->
-          <div class="tree-section" id="sec-cat1">
-            <div class="inline-form">
-              <input id="add-cat1-name" placeholder="Category 1 name…">
+          <div class="settings-section" id="sec-cat1">
+            <div class="add-bar">
+              <input id="add-cat1-name" placeholder="Category 1 name…" onkeydown="if(event.key==='Enter')addCat1()">
               <button class="btn btn-primary btn-sm" onclick="addCat1()"><i class="fas fa-plus"></i> Add</button>
             </div>
             <div id="cat1-list"><div class="loading-wrap"><div class="spinner"></div></div></div>
           </div>
 
           <!-- ═══ CATEGORY 2 ═══ -->
-          <div class="tree-section" id="sec-cat2">
-            <!-- Step 1: Pick parent Cat1 -->
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
-              <span style="font-size:12px;font-weight:800;color:var(--gold);white-space:nowrap;"><i class="fas fa-folder"></i> Working in:</span>
-              <select id="cat2-parent" class="form-input" style="flex:1;padding:8px 12px;" onchange="onCat2ParentChange()">
+          <div class="settings-section" id="sec-cat2">
+            <div class="parent-picker">
+              <span class="parent-picker-label"><i class="fas fa-folder"></i> Working in:</span>
+              <select id="cat2-parent" onchange="onCat2ParentChange()">
                 <option value="">Select Category 1 first…</option>
               </select>
             </div>
 
-            <!-- Step 2: Add area — only visible after Cat1 selected -->
             <div id="cat2-add-area" style="display:none;">
-              <!-- Quick single add -->
-              <div class="inline-form" style="margin-bottom:8px;">
-                <input id="add-cat2-name" placeholder="Type name and press Enter or click Add…" onkeydown="if(event.key==='Enter')addCat2()">
+              <div class="add-bar" style="margin-bottom:8px;">
+                <input id="add-cat2-name" placeholder="Type name and press Enter…" onkeydown="if(event.key==='Enter')addCat2()">
                 <button class="btn btn-primary btn-sm" onclick="addCat2()"><i class="fas fa-plus"></i> Add</button>
                 <button class="btn btn-ghost btn-sm" onclick="toggleBulk()" title="Bulk add"><i class="fas fa-list-ul"></i> Bulk</button>
-                <button class="btn btn-ghost btn-sm" onclick="togglePick()" title="Reuse a sub-category that exists under another Category 1"><i class="fas fa-clone"></i> Pick existing</button>
+                <button class="btn btn-ghost btn-sm" onclick="togglePick()" title="Reuse existing"><i class="fas fa-clone"></i> Pick</button>
               </div>
-              <!-- Bulk add (hidden by default) -->
-              <div id="cat2-bulk-area" style="display:none;margin-bottom:14px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
-                <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;">Paste multiple names — one per line:</div>
-                <textarea id="cat2-bulk" class="form-input" rows="6" placeholder="Sales Lead&#10;Events&#10;EOI Refund&#10;Data Update&#10;..." style="font-size:13px;"></textarea>
-                <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="bulkAddCat2()"><i class="fas fa-layer-group"></i> Add All</button>
+
+              <!-- Bulk add -->
+              <div id="cat2-bulk-area" style="display:none;">
+                <div class="expand-panel">
+                  <div class="expand-panel-title">Paste multiple names — one per line</div>
+                  <textarea id="cat2-bulk" class="form-input" rows="5" placeholder="Sales Lead&#10;Events&#10;EOI Refund&#10;Data Update" style="font-size:13px;width:100%;"></textarea>
+                  <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="bulkAddCat2()"><i class="fas fa-layer-group"></i> Add All</button>
+                </div>
               </div>
-              <!-- Pick existing (hidden by default) -->
-              <div id="cat2-pick-area" style="display:none;margin-bottom:14px;padding:14px;background:var(--surface2);border-radius:12px;border:1px solid var(--border);">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
-                  <div style="font-size:11px;color:var(--muted);font-weight:700;">Reuse a sub-category that exists under another Category 1 — pick one or more:</div>
-                  <input id="cat2-pick-filter" placeholder="🔎 Filter…" class="form-input" style="width:180px;padding:6px 10px;font-size:12px;" oninput="renderPickList()">
-                </div>
-                <div id="cat2-pick-list" style="max-height:280px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;">
-                  <div class="loading-wrap"><div class="spinner"></div></div>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;">
-                  <span id="cat2-pick-count" style="font-size:11px;color:var(--muted);font-weight:700;">0 selected</span>
-                  <div style="display:flex;gap:8px;">
-                    <button class="btn btn-ghost btn-sm" onclick="clearPickSelection()"><i class="fas fa-times"></i> Clear</button>
-                    <button class="btn btn-primary btn-sm" onclick="addSelectedExistingCat2()"><i class="fas fa-plus-circle"></i> Add selected</button>
+
+              <!-- Pick existing -->
+              <div id="cat2-pick-area" style="display:none;">
+                <div class="expand-panel">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+                    <div class="expand-panel-title" style="margin:0;">Reuse sub-categories from other Category 1</div>
+                    <input id="cat2-pick-filter" placeholder="Filter…" class="form-input" style="width:180px;padding:6px 10px;font-size:12px;" oninput="renderPickList()">
+                  </div>
+                  <div id="cat2-pick-list" style="max-height:260px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:4px;">
+                    <div class="loading-wrap"><div class="spinner"></div></div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap;">
+                    <span id="cat2-pick-count" style="font-size:11px;color:var(--muted);font-weight:700;">0 selected</span>
+                    <div style="display:flex;gap:8px;">
+                      <button class="btn btn-ghost btn-sm" onclick="clearPickSelection()"><i class="fas fa-times"></i> Clear</button>
+                      <button class="btn btn-primary btn-sm" onclick="addSelectedExistingCat2()"><i class="fas fa-plus-circle"></i> Add selected</button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- List -->
             <div id="cat2-list"><div class="empty-state"><span class="empty-icon">👆</span>Select a Category 1 above to manage its sub-categories</div></div>
           </div>
+
         </div>
       </div>
     </div>
@@ -139,12 +333,15 @@
 </div>
 
 <!-- ═══ SHARED UI ═══ -->
-<div id="toast-container" class="toast-container"></div>
+<div id="toast-container"></div>
 <div class="modal-overlay" id="modal-overlay">
-  <div class="modal-card">
-    <h3 id="modal-title">Confirm</h3>
-    <p id="modal-msg"></p>
-    <div class="modal-actions">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Confirm</div>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-danger" id="modal-confirm">Confirm</button>
     </div>
@@ -167,29 +364,29 @@ let cat1Cache = [];
 
 // ── TAB SWITCHING ──
 function switchTab(tab) {
-  document.querySelectorAll('.tree-tab').forEach((t,i) => {
-    const tabs = ['choose','cat1','cat2'];
+  const tabs = ['choose','cat1','cat2'];
+  document.querySelectorAll('.settings-tab').forEach((t,i) => {
     t.classList.toggle('active', tabs[i] === tab);
   });
-  document.querySelectorAll('.tree-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
   document.getElementById('sec-' + tab).classList.add('active');
 }
 
 // ── RENDER HELPERS ──
 function toggleBtn(isActive, id, table) {
-  const color = isActive ? '#10B981' : '#EF4444';
-  const icon  = isActive ? 'fa-toggle-on' : 'fa-toggle-off';
-  const title = isActive ? 'Active — click to deactivate' : 'Inactive — click to activate';
-  return `<button class="btn btn-ghost btn-sm btn-icon" title="${title}" style="color:${color};font-size:18px;"
-    onclick="toggleActive('${table}','${id}',${!isActive})"><i class="fas ${icon}"></i></button>`;
+  const cls  = isActive ? 'toggle-on' : 'toggle-off';
+  const icon = isActive ? 'fa-toggle-on' : 'fa-toggle-off';
+  const tip  = isActive ? 'Active — click to deactivate' : 'Inactive — click to activate';
+  return `<button class="action-btn ${cls}" title="${tip}" onclick="toggleActive('${table}','${id}',${!isActive})"><i class="fas ${icon}"></i></button>`;
 }
 function deleteBtn(id, table, name) {
-  return `<button class="btn btn-ghost btn-sm btn-icon" title="Delete" style="color:#EF4444;"
-    onclick="deleteItem('${table}','${id}','${name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>`;
+  return `<button class="action-btn danger" title="Delete" onclick="deleteItem('${table}','${id}','${escapeHtml(name)}')"><i class="fas fa-trash"></i></button>`;
 }
 function editBtn(id, table, name) {
-  return `<button class="btn btn-ghost btn-sm btn-icon" title="Rename" style="color:var(--gold);"
-    onclick="renameItem('${table}','${id}','${name.replace(/'/g,"\\'")}')"><i class="fas fa-pen"></i></button>`;
+  return `<button class="action-btn" title="Rename" onclick="renameItem('${table}','${id}','${escapeHtml(name)}')"><i class="fas fa-pen"></i></button>`;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 // ══════════════════════════
@@ -200,26 +397,33 @@ async function loadChoose() {
   wrap.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
   const { data, error } = await db.from('call_log_choose_options').select('*').order('sort_order').order('name');
   if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
-  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No options yet</div>'; return; }
 
-  wrap.innerHTML = data.map(r => `
-    <div class="item-row" style="opacity:${r.is_active ? 1 : 0.5};">
-      <span class="item-type ${r.option_type === 'project' ? 'type-project' : 'type-other'}">${r.option_type}</span>
-      <span class="item-name">${r.name}</span>
-      ${editBtn(r.id, 'call_log_choose_options', r.name)}
-      ${toggleBtn(r.is_active, r.id, 'call_log_choose_options')}
-      ${deleteBtn(r.id, 'call_log_choose_options', r.name)}
-    </div>`).join('');
+  document.getElementById('count-choose').textContent = data?.length || 0;
+
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No options yet — add one above</div>'; return; }
+
+  wrap.innerHTML = '<div class="item-list">' + data.map(r => `
+    <div class="item-row ${r.is_active ? '' : 'inactive'}">
+      <span class="item-type-badge ${r.option_type === 'project' ? 'type-project' : 'type-other'}">${r.option_type}</span>
+      <span class="item-name">${escapeHtml(r.name)}</span>
+      <div class="item-actions">
+        ${editBtn(r.id, 'call_log_choose_options', r.name)}
+        ${toggleBtn(r.is_active, r.id, 'call_log_choose_options')}
+        ${deleteBtn(r.id, 'call_log_choose_options', r.name)}
+      </div>
+    </div>`).join('') + '</div>';
 }
 
 async function addChoose() {
-  const name = document.getElementById('add-choose-name').value.trim();
-  const type = document.getElementById('add-choose-type').value;
-  if (!name) { showToast('Enter name', 'warning'); return; }
+  const input = document.getElementById('add-choose-name');
+  const name  = input.value.trim();
+  const type  = document.getElementById('add-choose-type').value;
+  if (!name) { showToast('Enter a name', 'warning'); return; }
   const { error } = await db.from('call_log_choose_options').insert({ name, option_type: type });
   if (error) { showToast(error.message, 'error'); return; }
-  document.getElementById('add-choose-name').value = '';
-  showToast('Added', 'success');
+  input.value = '';
+  input.focus();
+  showToast(`"${name}" added`, 'success');
   loadChoose();
 }
 
@@ -233,30 +437,37 @@ async function loadCat1() {
   if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
   cat1Cache = data || [];
 
-  // Populate the Cat2 parent dropdown
+  document.getElementById('count-cat1').textContent = data?.length || 0;
+
+  // Populate Cat2 parent dropdown
   const sel = document.getElementById('cat2-parent');
   const val = sel.value;
   sel.innerHTML = '<option value="">Select Category 1 first…</option>';
   cat1Cache.filter(c => c.is_active).forEach(c => sel.add(new Option(c.name, c.id)));
   sel.value = val;
 
-  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No categories yet</div>'; return; }
-  wrap.innerHTML = data.map(r => `
-    <div class="item-row" style="opacity:${r.is_active ? 1 : 0.5};">
-      <span class="item-name">${r.name}</span>
-      ${editBtn(r.id, 'call_log_categories', r.name)}
-      ${toggleBtn(r.is_active, r.id, 'call_log_categories')}
-      ${deleteBtn(r.id, 'call_log_categories', r.name)}
-    </div>`).join('');
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No categories yet — add one above</div>'; return; }
+
+  wrap.innerHTML = '<div class="item-list">' + data.map(r => `
+    <div class="item-row ${r.is_active ? '' : 'inactive'}">
+      <span class="item-name">${escapeHtml(r.name)}</span>
+      <div class="item-actions">
+        ${editBtn(r.id, 'call_log_categories', r.name)}
+        ${toggleBtn(r.is_active, r.id, 'call_log_categories')}
+        ${deleteBtn(r.id, 'call_log_categories', r.name)}
+      </div>
+    </div>`).join('') + '</div>';
 }
 
 async function addCat1() {
-  const name = document.getElementById('add-cat1-name').value.trim();
-  if (!name) { showToast('Enter name', 'warning'); return; }
+  const input = document.getElementById('add-cat1-name');
+  const name  = input.value.trim();
+  if (!name) { showToast('Enter a name', 'warning'); return; }
   const { error } = await db.from('call_log_categories').insert({ name });
   if (error) { showToast(error.message, 'error'); return; }
-  document.getElementById('add-cat1-name').value = '';
-  showToast('Added', 'success');
+  input.value = '';
+  input.focus();
+  showToast(`"${name}" added`, 'success');
   loadCat1();
 }
 
@@ -267,12 +478,13 @@ function onCat2ParentChange() {
   const parentId = document.getElementById('cat2-parent').value;
   document.getElementById('cat2-add-area').style.display = parentId ? '' : 'none';
   document.getElementById('cat2-bulk-area').style.display = 'none';
+  document.getElementById('cat2-pick-area').style.display = 'none';
   if (parentId) {
     loadCat2();
-    // Auto-focus the input for fast adding
     setTimeout(() => document.getElementById('add-cat2-name').focus(), 100);
   } else {
     document.getElementById('cat2-list').innerHTML = '<div class="empty-state"><span class="empty-icon">👆</span>Select a Category 1 above to manage its sub-categories</div>';
+    document.getElementById('count-cat2').textContent = 0;
   }
 }
 
@@ -283,12 +495,7 @@ function toggleBulk() {
   area.style.display = opening ? '' : 'none';
 }
 
-// ── PICK EXISTING (reuse a Cat2 name from another Cat1) ──
-let _allCat2Cache = []; // { id, category1_id, name }
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
+let _allCat2Cache = [];
 
 function togglePick() {
   const area = document.getElementById('cat2-pick-area');
@@ -312,7 +519,6 @@ function renderPickList() {
   const filter = (document.getElementById('cat2-pick-filter').value || '').trim().toLowerCase();
   const currentParent = document.getElementById('cat2-parent').value;
 
-  // Group by name (case-insensitive dedup), collect the parent Cat1 IDs each name is under
   const byName = {};
   for (const row of _allCat2Cache) {
     const key = row.name.toLowerCase();
@@ -325,27 +531,23 @@ function renderPickList() {
       const parentNames = [...x.parents]
         .map(pid => cat1Cache.find(c => c.id === pid)?.name || '?')
         .sort((a, b) => a.localeCompare(b));
-      return {
-        name: x.name,
-        parentNames,
-        alreadyHere: x.parents.has(currentParent),
-      };
+      return { name: x.name, parentNames, alreadyHere: x.parents.has(currentParent) };
     })
-    .filter(x => !x.alreadyHere)                            // hide names already under current Cat1
+    .filter(x => !x.alreadyHere)
     .filter(x => !filter || x.name.toLowerCase().includes(filter))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   if (!items.length) {
-    listEl.innerHTML = '<div class="empty-state" style="padding:20px;font-size:12px;"><span class="empty-icon">📭</span>Nothing to reuse — all existing sub-categories are already here (or none match the filter).</div>';
+    listEl.innerHTML = '<div class="empty-state" style="padding:20px;font-size:12px;"><span class="empty-icon">📭</span>No sub-categories available to reuse</div>';
     updatePickCount();
     return;
   }
 
   listEl.innerHTML = items.map(item => `
-    <label class="cat2-pick-row" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);">
-      <input type="checkbox" class="cat2-pick-cb" data-name="${escapeHtml(item.name)}" onchange="updatePickCount()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">
-      <span style="flex:1;font-weight:700;color:var(--text);">${escapeHtml(item.name)}</span>
-      <span style="font-size:10px;color:var(--muted);text-align:right;">in: ${item.parentNames.map(escapeHtml).join(', ')}</span>
+    <label class="pick-item">
+      <input type="checkbox" class="cat2-pick-cb" data-name="${escapeHtml(item.name)}" onchange="updatePickCount()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--accent);">
+      <span class="pick-name">${escapeHtml(item.name)}</span>
+      <span class="pick-parents">in: ${item.parentNames.map(escapeHtml).join(', ')}</span>
     </label>
   `).join('');
   updatePickCount();
@@ -365,14 +567,14 @@ async function addSelectedExistingCat2() {
   const parentId = document.getElementById('cat2-parent').value;
   if (!parentId) { showToast('Select Category 1 first', 'warning'); return; }
   const names = [...document.querySelectorAll('.cat2-pick-cb:checked')].map(cb => cb.dataset.name);
-  if (!names.length) { showToast('Pick at least one name', 'warning'); return; }
+  if (!names.length) { showToast('Pick at least one item', 'warning'); return; }
 
   const rows = names.map(name => ({ category1_id: parentId, name }));
   const { error } = await db.from('call_log_category2').insert(rows);
   if (error) { showToast(error.message, 'error'); return; }
 
   document.getElementById('cat2-pick-area').style.display = 'none';
-  showToast(`Added ${names.length} item(s) ✓`, 'success');
+  showToast(`Added ${names.length} item(s)`, 'success');
   loadCat2();
 }
 
@@ -384,18 +586,23 @@ async function loadCat2() {
 
   const { data, error } = await db.from('call_log_category2').select('*').eq('category1_id', parent).order('sort_order').order('name');
   if (error) { wrap.innerHTML = `<div class="empty-state">❌ ${error.message}</div>`; return; }
-  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No sub-categories yet — add some above!</div>'; return; }
+
+  document.getElementById('count-cat2').textContent = data?.length || 0;
+
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>No sub-categories yet — add some above</div>'; return; }
 
   const parentName = cat1Cache.find(c => c.id === parent)?.name || '?';
 
-  wrap.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:700;">${data.length} item(s) under ${parentName}</div>` +
-    data.map(r => `
-    <div class="item-row" style="opacity:${r.is_active ? 1 : 0.5};">
-      <span class="item-name">${r.name}</span>
-      ${editBtn(r.id, 'call_log_category2', r.name)}
-      ${toggleBtn(r.is_active, r.id, 'call_log_category2')}
-      ${deleteBtn(r.id, 'call_log_category2', r.name)}
-    </div>`).join('');
+  wrap.innerHTML = `<div class="section-count">${data.length} item(s) under ${escapeHtml(parentName)}</div>` +
+    '<div class="item-list">' + data.map(r => `
+    <div class="item-row ${r.is_active ? '' : 'inactive'}">
+      <span class="item-name">${escapeHtml(r.name)}</span>
+      <div class="item-actions">
+        ${editBtn(r.id, 'call_log_category2', r.name)}
+        ${toggleBtn(r.is_active, r.id, 'call_log_category2')}
+        ${deleteBtn(r.id, 'call_log_category2', r.name)}
+      </div>
+    </div>`).join('') + '</div>';
 }
 
 async function addCat2() {
@@ -403,12 +610,12 @@ async function addCat2() {
   const input    = document.getElementById('add-cat2-name');
   const name     = input.value.trim();
   if (!parentId) { showToast('Select Category 1 first', 'warning'); return; }
-  if (!name)     { showToast('Enter name', 'warning'); return; }
+  if (!name)     { showToast('Enter a name', 'warning'); return; }
   const { error } = await db.from('call_log_category2').insert({ category1_id: parentId, name });
   if (error) { showToast(error.message, 'error'); return; }
   input.value = '';
-  input.focus(); // Stay focused for fast adding
-  showToast('Added ✓', 'success');
+  input.focus();
+  showToast(`"${name}" added`, 'success');
   loadCat2();
 }
 
@@ -427,7 +634,7 @@ async function bulkAddCat2() {
 
   document.getElementById('cat2-bulk').value = '';
   document.getElementById('cat2-bulk-area').style.display = 'none';
-  showToast(`Added ${names.length} items ✓`, 'success');
+  showToast(`Added ${names.length} items`, 'success');
   loadCat2();
 }
 
@@ -450,21 +657,20 @@ function deleteItem(table, id, name) {
   });
 }
 
-function renameItem(table, id, currentName) {
-  const newName = prompt('Rename:', currentName);
-  if (!newName || newName.trim() === currentName) return;
-  db.from(table).update({ name: newName.trim(), updated_at: new Date().toISOString() }).eq('id', id)
-    .then(({ error }) => {
-      if (error) { showToast(error.message, 'error'); return; }
-      showToast('Renamed', 'success');
-      refreshAll();
-    });
+async function renameItem(table, id, currentName) {
+  const newName = await showPrompt('Rename', currentName, 'Enter the new name for this item');
+  if (!newName || newName === currentName) return;
+  const { error } = await db.from(table).update({ name: newName, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Renamed', 'success');
+  refreshAll();
 }
 
 function refreshAll() {
   loadChoose();
   loadCat1();
-  loadCat2();
+  const parent = document.getElementById('cat2-parent').value;
+  if (parent) loadCat2();
 }
 
 // ── INIT ──
