@@ -209,7 +209,7 @@ function rateColor(rate) {
 
 function exportFCR() {
   const results = window._fcrResults || [];
-  if (!results.length) { alert('No data to export.'); return; }
+  if (!results.length) { showToast('No data to export', 'warning'); return; }
 
   const from = window._fcrFrom || '';
   const to   = window._fcrTo   || '';
