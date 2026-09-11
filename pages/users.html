@@ -183,29 +183,17 @@ if (session) {
 // ═══════════════════════════════════════════
 // إعدادات الصفحات والرولز
 // ═══════════════════════════════════════════
-const ALL_PAGES = [
-  { key: 'dashboard',      label: 'Dashboard' },
-  { key: 'agents',         label: 'Agents' },
-  { key: 'annual-leave',   label: 'Annual Leave' },
-  { key: 'schedule',       label: 'Schedule' },
-  { key: 'schedule-audit', label: 'Schedule Audit' },
-  { key: 'breaks',         label: 'Breaks' },
-  { key: 'requests',       label: 'Requests' },
-  { key: 'kpis',           label: 'KPIs' },
-  { key: 'excuses',        label: 'Excuses' },
-  { key: 'adherence',      label: 'Adherence' },
-  { key: 'waiving',        label: 'Waiving' },
-  { key: 'xcally-live',    label: 'xCALLY Live' },
-  { key: 'xcally-import',  label: 'xCALLY Import' },
-  { key: 'xcally-reports', label: 'xCALLY Reports' },
-  { key: 'fcr',            label: 'FCR Analytics' },
-  { key: 'quality',        label: 'Quality' },
-  { key: 'calllog',        label: 'Call Log' },
-  { key: 'audit-log',      label: 'Audit Log' },
-  { key: 'reference',      label: 'Reference' },
-  { key: 'reports',        label: 'Reports' },
-  { key: 'hr-report',      label: 'HR Report' }
-];
+// ── الصفحات بتتقرأ تلقائي من الـ sidebar — أي صفحة جديدة هتظهر هنا فوراً ──
+const ALL_PAGES = (window.SIDEBAR_PAGES || []).map(p => ({ key: p.key, label: p.label, group: p.group }));
+
+// لو SIDEBAR_PAGES مش موجودة (fallback)
+if (!ALL_PAGES.length) {
+  console.warn('SIDEBAR_PAGES not found — using fallback');
+  ['dashboard','agents','annual-leave','schedule','schedule-audit','breaks','requests',
+   'kpis','excuses','adherence-new','waiving','xcally-live','xcally-import','xcally-reports',
+   'fcr','quality','calllog','calllog-settings','audit-log','reference','reports','hr-report','users'
+  ].forEach(k => ALL_PAGES.push({ key: k, label: k.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()), group: '' }));
+}
 
 // الصلاحيات الافتراضية لكل رول — عدّلها زي ما تحب
 const ROLE_DEFAULTS = {
@@ -309,12 +297,27 @@ function renderUsers() {
 // ═══════════════════════════════════════════
 function renderPermGrid(selected) {
   const grid = document.getElementById('perm-grid');
-  grid.innerHTML = ALL_PAGES.map(p => `
-    <label class="perm-item ${selected.includes(p.key) ? 'checked' : ''}">
-      <input type="checkbox" value="${p.key}" ${selected.includes(p.key) ? 'checked' : ''}
-             onchange="this.closest('.perm-item').classList.toggle('checked', this.checked)">
-      ${p.label}
-    </label>`).join('');
+  // Group pages by their sidebar group
+  const groups = {};
+  ALL_PAGES.forEach(p => {
+    const g = p.group || 'Other';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(p);
+  });
+
+  let html = '';
+  for (const [groupName, pages] of Object.entries(groups)) {
+    html += `<div style="grid-column:1/-1;font-size:11px;font-weight:800;color:var(--gold,#D4AF37);text-transform:uppercase;letter-spacing:.7px;margin-top:10px;padding-bottom:4px;border-bottom:1px solid var(--border,rgba(255,255,255,.06));">
+      ${groupName}
+    </div>`;
+    html += pages.map(p => `
+      <label class="perm-item ${selected.includes(p.key) ? 'checked' : ''}">
+        <input type="checkbox" value="${p.key}" ${selected.includes(p.key) ? 'checked' : ''}
+               onchange="this.closest('.perm-item').classList.toggle('checked', this.checked)">
+        ${p.label}
+      </label>`).join('');
+  }
+  grid.innerHTML = html;
 }
 
 function getSelectedPerms() {
