@@ -246,6 +246,7 @@ function renderSidebar() {
         { section: 'Calls' },
         { label: 'Call Log',         key: 'calllog',          icon: 'fa-phone-alt',          href: base + 'pages/calllog.html' },
         { label: 'CL Settings',     key: 'calllog-settings', icon: 'fa-sitemap',            href: base + 'pages/calllog-settings.html' },
+        { label: 'Email Templates', key: 'email-templates',  icon: 'fa-envelope-open-text', href: base + 'pages/email-templates.html' },
         { label: 'FCR Analytics',    key: 'fcr',              icon: 'fa-redo',               href: base + 'pages/fcr.html' },
         { section: 'xCALLY' },
         { label: 'xCALLY Live',     key: 'xcally-live',      icon: 'fa-satellite-dish',     href: base + 'pages/xcally-live.html' },
