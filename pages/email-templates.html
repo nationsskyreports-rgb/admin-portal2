@@ -76,8 +76,6 @@
     <div class="form-group"><label class="form-label">Email Body</label>
       <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Use <span class="placeholder">[Customer Name]</span> <span class="placeholder">[Phone]</span> <span class="placeholder">[Amount]</span> etc. as placeholders — agents will fill them in.</div>
       <textarea id="e-body" class="form-input" rows="12" placeholder="Dear Sir,&#10;&#10;I hope this email finds you well.&#10;&#10;..." style="font-size:13px;line-height:1.7;"></textarea></div>
-    <div class="form-group"><label class="form-label">Sort Order</label>
-      <input id="e-sort" type="number" class="form-input" value="0" style="width:100px;"></div>
     <div style="display:flex;gap:10px;margin-top:16px;">
       <button class="btn btn-ghost" onclick="closeEditor()">Cancel</button>
       <button class="btn btn-primary" id="save-btn" onclick="saveTemplate()"><i class="fas fa-save"></i> Save</button>
@@ -165,7 +163,7 @@ function openEditor(){
   document.getElementById('e-category').value='';
   document.getElementById('e-subject').value='';
   document.getElementById('e-body').value='';
-  document.getElementById('e-sort').value='0';
+  
   setChips('to-chips',[]);setChips('cc-chips',[]);
   // Populate category datalist
   const cats=[...new Set(templates.map(t=>t.category).filter(Boolean))];
@@ -185,7 +183,7 @@ function editTemplate(id){
   document.getElementById('e-category').value=t.category||'';
   document.getElementById('e-subject').value=t.subject||'';
   document.getElementById('e-body').value=t.body||'';
-  document.getElementById('e-sort').value=t.sort_order||0;
+  
   setChips('to-chips',t.to_emails||[]);
   setChips('cc-chips',t.cc_emails||[]);
   const cats=[...new Set(templates.map(x=>x.category).filter(Boolean))];
@@ -204,7 +202,7 @@ async function saveTemplate(){
     body:document.getElementById('e-body').value,
     to_emails:getChips('to-chips'),
     cc_emails:getChips('cc-chips'),
-    sort_order:parseInt(document.getElementById('e-sort').value)||0,
+    sort_order:templates.length + 1,
     updated_by:session?.username||'Admin',
     updated_at:new Date().toISOString()
   };
