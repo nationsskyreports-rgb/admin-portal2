@@ -440,15 +440,15 @@ async function loadKPIs(monthName, year) {
     const lastDay  = new Date(year, parseInt(month), 0).getDate();
     const dateTo   = year+'-'+month+'-'+String(lastDay).padStart(2,'0');
 
-    // UPDATED QUERY: Added deviation_minutes
-    const [perfRes, excusesRes, annualRes, qualityRes, adherenceRes, xcallyRes] = await Promise.all([
-      db.from('daily_performance').select('agent_id,agent_name,conformance,missing_sec,active_sec,target_sec,avg_aht,calls').gte('perf_date',dateFrom).lte('perf_date',dateTo),
+    // ── Queries: perf now includes break/wc fields, + adherence_config for budget thresholds ──
+    const [perfRes, excusesRes, annualRes, qualityRes, adherenceRes, xcallyRes, adhCfgRes] = await Promise.all([
+      db.from('daily_performance').select('agent_id,agent_name,conformance,missing_sec,active_sec,target_sec,avg_aht,calls,personal_break_sec,work_pause_sec,wc_sec').gte('perf_date',dateFrom).lte('perf_date',dateTo),
       db.from('excuses').select('*').eq('status','Approved').gte('excuse_date',dateFrom).lte('excuse_date',dateTo),
       db.from('annual_leave').select('*').eq('year',year),
       db.from('quality_scores').select('*').eq('month',monthName).eq('year',year),
-      // CHANGED: fetching deviation_minutes + deviation_date for adherence rate calc
-      db.from('adherence_deviations').select('agent_id,is_waived,deviation_minutes,deviation_date').gte('deviation_date',dateFrom).lte('deviation_date',dateTo),
+      db.from('adherence_deviations').select('agent_id,is_waived,deviation_minutes,deviation_date,deviation_type').gte('deviation_date',dateFrom).lte('deviation_date',dateTo),
       db.from('xcally_calls_logs').select('agent_name,call_source,talk_duration').gte('call_date',dateFrom).lte('call_date',dateTo),
+      db.from('adherence_config').select('daily_break_budget,daily_wc_budget,break_tolerance').limit(1),
     ]);
 
     const perfData      = perfRes.data      || [];
@@ -457,6 +457,12 @@ async function loadKPIs(monthName, year) {
     const qualityData   = qualityRes.data   || [];
     const adherenceData = adherenceRes.data || [];
     kpiData = qualityData;
+
+    // ── Break Adherence config (budget-based) ──
+    const _adhCfg      = (adhCfgRes.data && adhCfgRes.data[0]) || {};
+    const _breakBudget = _adhCfg.daily_break_budget || 60;   // minutes
+    const _wcBudget    = _adhCfg.daily_wc_budget    || 15;   // minutes
+    const _breakTol    = _adhCfg.break_tolerance     || 2;   // minutes tolerance
 
     // xcallyMap: agent → { obCount, ibTalkSec, ibCount }
     const norm = s => (s||'').toLowerCase().replace(/\s+/g,'');
@@ -489,8 +495,9 @@ async function loadKPIs(monthName, year) {
         const totalExtraSec   = agentPerf.reduce((s,p)=>s+Math.max(0,(p.active_sec||0)-(p.target_sec||0)),0);
         const totalTargetSec  = agentPerf.reduce((s,p)=>s+(p.target_sec||0),0);
 
-        // 2. CALCULATE WAIVED SECONDS
-        const agentDeviations = adherenceData.filter(d => d.agent_id === agent.id);
+        // 2. CALCULATE WAIVED SECONDS — only from Break Adherence types
+        const _breakDevTypes = ['Over Break', 'Over WC'];
+        const agentDeviations = adherenceData.filter(d => d.agent_id === agent.id && _breakDevTypes.includes(d.deviation_type));
         let waivedMinutes = 0;
         agentDeviations.forEach(d => {
           if (d.is_waived) waivedMinutes += (d.deviation_minutes || 0);
@@ -547,16 +554,21 @@ async function loadKPIs(monthName, year) {
         '<td style="font-size:11px;color:'+(netMissing==='Full Time'?'#10B981':'#EF4444')+';font-weight:700;">'+netMissing+'</td>'+
         '<td style="color:#F59E0B;font-weight:700;">'+excStr+'</td>'+
         (function(){
-          // Adherence Rate = adherent days / total working days
-          // A "bad" day = has at least 1 active (non-waived) deviation
+          // ── Break Adherence Rate (budget-based) ──
+          // A "bad" day = break over budget OR WC over budget (beyond tolerance)
           const workDays = agentPerf.length;
           if (!workDays) return '<td style="color:var(--muted)">—</td>';
-          const activeDevs   = adherenceData.filter(d => d.agent_id === agent.id && !d.is_waived);
-          const badDays      = new Set(activeDevs.map(d => d.deviation_date)).size;
-          const adherentDays = Math.max(0, workDays - badDays);
+          const violationDays = agentPerf.filter(p => {
+            const breakMin = Math.round(((p.personal_break_sec || 0) + (p.work_pause_sec || 0)) / 60);
+            const wcMin    = Math.round((p.wc_sec || 0) / 60);
+            const overBreak = Math.max(0, breakMin - _breakBudget);
+            const overWC    = Math.max(0, wcMin    - _wcBudget);
+            return overBreak > _breakTol || overWC > _breakTol;
+          }).length;
+          const adherentDays = workDays - violationDays;
           const rate         = Math.round((adherentDays / workDays) * 100);
           const pctColor     = rate === 100 ? '#10B981' : rate >= 80 ? '#F59E0B' : '#EF4444';
-          const tipText      = adherentDays + '/' + workDays + ' days adherent';
+          const tipText      = adherentDays + '/' + workDays + ' days • break budget';
           return '<td title="' + tipText + '" style="font-weight:800;color:' + pctColor + ';">' + rate + '%</td>';
         })()+
         '<td><input class="editable-cell" type="text" value="'+(quality?.score||'')+'" placeholder="—" onchange="markEdit(\''+agent.id+'\',\'score\',this.value)" style="color:var(--gold);font-weight:700;"></td>'+
