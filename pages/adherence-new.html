@@ -49,6 +49,79 @@
 }
 .checkbox-label:hover { border-color:var(--border2); }
 .checkbox-label input { accent-color:var(--accent); width:15px; height:15px; }
+
+/* ── Agent Breakdown ── */
+.bd-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:14px; }
+.bd-card {
+  background:var(--card-bg); border:1px solid var(--border); border-radius:14px;
+  overflow:hidden; transition:border-color .2s, box-shadow .2s;
+}
+.bd-card:hover { border-color:var(--border2); }
+.bd-card.open { grid-column:1 / -1; }
+.bd-head {
+  display:flex; align-items:center; gap:14px; padding:16px 18px; cursor:pointer;
+  user-select:none; transition:background .15s;
+}
+.bd-head:hover { background:var(--surface2); }
+.bd-avatar {
+  width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:13px; color:#fff; flex-shrink:0;
+  background:linear-gradient(135deg, #00B69B, #0EA5E9);
+}
+.bd-name { font-weight:800; font-size:14px; color:var(--text); }
+.bd-sub  { font-size:11px; color:var(--muted); margin-top:2px; }
+.bd-rate {
+  margin-left:auto; font-size:22px; font-weight:900; font-family:'JetBrains Mono',monospace;
+  letter-spacing:-.5px;
+}
+.bd-toggle {
+  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+  border-radius:8px; background:var(--surface2); color:var(--muted); font-size:12px;
+  transition:transform .25s; flex-shrink:0;
+}
+.bd-card.open .bd-toggle { transform:rotate(180deg); }
+
+.bd-stats {
+  display:flex; gap:6px; padding:0 18px 14px; flex-wrap:wrap;
+}
+.bd-stat {
+  flex:1; min-width:60px; text-align:center; padding:8px 6px;
+  background:var(--surface2); border-radius:8px;
+}
+.bd-stat-val { font-size:16px; font-weight:800; font-family:'JetBrains Mono',monospace; }
+.bd-stat-lbl { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-top:2px; }
+
+.bd-detail {
+  max-height:0; overflow:hidden; transition:max-height .35s ease;
+}
+.bd-card.open .bd-detail { max-height:2000px; }
+
+.bd-detail-table { width:100%; border-collapse:collapse; font-size:11px; }
+.bd-detail-table th {
+  padding:8px 10px; background:var(--surface2); color:var(--muted);
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
+  border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+  text-align:center; white-space:nowrap;
+}
+.bd-detail-table th:first-child { text-align:left; }
+.bd-detail-table td {
+  padding:7px 10px; border-bottom:1px solid var(--border);
+  text-align:center; vertical-align:middle; font-family:'JetBrains Mono',monospace;
+}
+.bd-detail-table td:first-child { text-align:left; font-family:inherit; }
+.bd-detail-table tr:last-child td { border-bottom:none; }
+.bd-detail-table tbody tr:hover td { background:var(--surface2); }
+
+.bd-bar-track { height:6px; border-radius:3px; background:var(--surface2); overflow:hidden; min-width:60px; }
+.bd-bar-fill  { height:100%; border-radius:3px; transition:width .3s; }
+
+.bd-chip {
+  display:inline-block; padding:2px 8px; border-radius:20px;
+  font-size:10px; font-weight:800; font-family:'JetBrains Mono',monospace;
+}
+.bd-chip-ok   { background:rgba(16,185,129,.12); color:#10B981; }
+.bd-chip-over { background:rgba(239,68,68,.12);  color:#EF4444; }
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -177,11 +250,23 @@
         </div>
       </div>
 
+      <!-- ═══ AGENT BREAKDOWN ═══ -->
+      <div class="section-card fade-up" id="breakdown-section" style="margin-top:16px; display:none;">
+        <div class="section-header" style="display:flex; align-items:center; justify-content:space-between;">
+          <div class="section-title"><i class="fas fa-users" style="color:var(--gold)"></i> Agent Breakdown</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="bd-count" style="font-size:11px; color:var(--muted); font-weight:600;"></span>
+            <button class="btn btn-ghost btn-sm" onclick="collapseAllCards()" title="Collapse All"><i class="fas fa-compress-alt"></i></button>
+          </div>
+        </div>
+        <div class="section-body" style="padding:14px;">
+          <div class="bd-grid" id="bd-grid"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
-
-<!-- ═══ SHARED UI ═══ -->
 <div id="toast-container"></div>
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box">
@@ -313,6 +398,7 @@ async function loadData() {
 
     renderTable();
     renderKPIs();
+    renderBreakdown();
     document.getElementById('row-count').innerText = tableData.length + ' record(s)';
 
   } catch(e) {
@@ -400,6 +486,111 @@ function renderKPIs() {
   document.getElementById('k-overwc').innerText      = overWC + 'm';
   document.getElementById('k-compliance').innerText  = compliance + '%';
   document.getElementById('k-compliance').style.color = compliance >= 90 ? '#10B981' : compliance >= 70 ? '#F59E0B' : '#EF4444';
+}
+
+// ═══════════════════════════════════════
+//  AGENT BREAKDOWN
+// ═══════════════════════════════════════
+function renderBreakdown() {
+  const section = document.getElementById('breakdown-section');
+  const grid    = document.getElementById('bd-grid');
+  if (!tableData.length) { section.style.display = 'none'; return; }
+
+  // ── group by agent ──
+  const map = {};
+  tableData.forEach(r => {
+    const key = r.agent_id || r.agent_name;
+    if (!map[key]) map[key] = { name: r.agent_name, rows: [] };
+    map[key].rows.push(r);
+  });
+
+  const agents = Object.values(map).sort((a, b) => {
+    const ca = a.rows.filter(r => !r.isViolation).length / a.rows.length;
+    const cb = b.rows.filter(r => !r.isViolation).length / b.rows.length;
+    return ca - cb; // worst first
+  });
+
+  document.getElementById('bd-count').innerText = agents.length + ' agent(s)';
+
+  grid.innerHTML = agents.map((ag, idx) => {
+    const total      = ag.rows.length;
+    const violations = ag.rows.filter(r => r.isViolation).length;
+    const clean      = total - violations;
+    const pct        = total > 0 ? Math.round((clean / total) * 100) : 100;
+    const pctColor   = pct >= 90 ? '#10B981' : pct >= 70 ? '#F59E0B' : '#EF4444';
+
+    const avgBreak = Math.round(ag.rows.reduce((s, r) => s + r.breakMin, 0) / total);
+    const avgWC    = Math.round(ag.rows.reduce((s, r) => s + r.wcMin, 0) / total);
+    const totalOverBreak = ag.rows.reduce((s, r) => s + Math.max(0, r.overBreak), 0);
+    const totalOverWC    = ag.rows.reduce((s, r) => s + Math.max(0, r.overWC), 0);
+
+    // ── daily detail rows ──
+    const sorted = [...ag.rows].sort((a, b) => b.perf_date.localeCompare(a.perf_date));
+    const detailRows = sorted.map(r => {
+      const d        = new Date(r.perf_date + 'T00:00:00');
+      const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+      const breakPct = Math.min(100, Math.round((r.breakMin / CFG.breakBudget) * 100));
+      const wcPct    = Math.min(100, Math.round((r.wcMin / CFG.wcBudget) * 100));
+      const bColor   = r.overBreak > CFG.tolerance ? '#EF4444' : r.overBreak > 0 ? '#F59E0B' : '#10B981';
+      const wColor   = r.overWC > CFG.tolerance    ? '#EF4444' : r.overWC > 0    ? '#F59E0B' : '#10B981';
+      const statusChip = r.isViolation
+        ? '<span class="bd-chip bd-chip-over">OVER</span>'
+        : '<span class="bd-chip bd-chip-ok">OK</span>';
+
+      return '<tr' + (r.isViolation ? ' style="background:rgba(239,68,68,.04);"' : '') + '>' +
+        '<td style="font-weight:700;color:var(--gold);white-space:nowrap;font-family:inherit;font-size:11px;">' + dayLabel + '</td>' +
+        '<td style="color:' + bColor + ';font-weight:700;">' + r.breakMin + 'm</td>' +
+        '<td><div class="bd-bar-track"><div class="bd-bar-fill" style="width:' + breakPct + '%;background:' + bColor + ';"></div></div></td>' +
+        '<td style="color:' + (r.overBreak > 0 ? '#EF4444' : 'var(--muted)') + ';font-weight:700;">' + (r.overBreak > 0 ? '+' + r.overBreak : '—') + '</td>' +
+        '<td style="color:' + wColor + ';font-weight:700;">' + r.wcMin + 'm</td>' +
+        '<td><div class="bd-bar-track"><div class="bd-bar-fill" style="width:' + wcPct + '%;background:' + wColor + ';"></div></div></td>' +
+        '<td style="color:' + (r.overWC > 0 ? '#EF4444' : 'var(--muted)') + ';font-weight:700;">' + (r.overWC > 0 ? '+' + r.overWC : '—') + '</td>' +
+        '<td>' + statusChip + '</td>' +
+        '</tr>';
+    }).join('');
+
+    const ini = ag.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+
+    return '<div class="bd-card" id="bd-card-' + idx + '">' +
+      '<div class="bd-head" onclick="toggleBdCard(' + idx + ')">' +
+        '<div class="bd-avatar">' + ini + '</div>' +
+        '<div>' +
+          '<div class="bd-name">' + ag.name + '</div>' +
+          '<div class="bd-sub">' + total + ' days tracked • avg break ' + avgBreak + 'm • avg WC ' + avgWC + 'm</div>' +
+        '</div>' +
+        '<div class="bd-rate" style="color:' + pctColor + ';">' + pct + '%</div>' +
+        '<div class="bd-toggle"><i class="fas fa-chevron-down"></i></div>' +
+      '</div>' +
+      '<div class="bd-stats">' +
+        '<div class="bd-stat"><div class="bd-stat-val" style="color:var(--gold);">' + total + '</div><div class="bd-stat-lbl">Days</div></div>' +
+        '<div class="bd-stat"><div class="bd-stat-val" style="color:#10B981;">' + clean + '</div><div class="bd-stat-lbl">Clean</div></div>' +
+        '<div class="bd-stat"><div class="bd-stat-val" style="color:#EF4444;">' + violations + '</div><div class="bd-stat-lbl">Violations</div></div>' +
+        '<div class="bd-stat"><div class="bd-stat-val" style="color:#F59E0B;">' + totalOverBreak + 'm</div><div class="bd-stat-lbl">Over Break</div></div>' +
+        '<div class="bd-stat"><div class="bd-stat-val" style="color:#8B5CF6;">' + totalOverWC + 'm</div><div class="bd-stat-lbl">Over WC</div></div>' +
+      '</div>' +
+      '<div class="bd-detail">' +
+        '<table class="bd-detail-table">' +
+          '<thead><tr>' +
+            '<th style="text-align:left;">Date</th>' +
+            '<th>Break</th><th style="min-width:70px;">Bar</th><th>Over</th>' +
+            '<th>WC</th><th style="min-width:70px;">Bar</th><th>Over</th>' +
+            '<th>Status</th>' +
+          '</tr></thead>' +
+          '<tbody>' + detailRows + '</tbody>' +
+        '</table>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  section.style.display = 'block';
+}
+
+function toggleBdCard(idx) {
+  document.getElementById('bd-card-' + idx).classList.toggle('open');
+}
+
+function collapseAllCards() {
+  document.querySelectorAll('.bd-card.open').forEach(c => c.classList.remove('open'));
 }
 
 // ── AUTO-CHECK ──
