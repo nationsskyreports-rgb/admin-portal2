@@ -120,7 +120,7 @@
                   <tr>
                     <th>Conformance</th><th>Missing Time</th><th>AHT <span style="font-size:9px;opacity:.6;">(IB)</span></th>
                     <th title="Total Calls">📊 Total</th><th title="Inbound Calls">📥 IB</th><th title="Outbound Calls">📤 OB</th><th>Net Missing</th><th>Excuses</th>
-                    <th>Deviations</th><th>Score</th>
+                    <th title="Break Adherence — excused days excluded">Break Adh.</th><th>Score</th>
                     <th class="th-annual">Remaining</th><th class="th-annual">Used MTD</th><th class="th-annual">Used YTD</th>
                   </tr>
                 </thead>
@@ -442,7 +442,7 @@ async function loadKPIs(monthName, year) {
 
     // ── Queries: perf now includes break/wc fields, + adherence_config for budget thresholds ──
     const [perfRes, excusesRes, annualRes, qualityRes, adherenceRes, xcallyRes, adhCfgRes] = await Promise.all([
-      db.from('daily_performance').select('agent_id,agent_name,conformance,missing_sec,active_sec,target_sec,avg_aht,calls,personal_break_sec,work_pause_sec,wc_sec').gte('perf_date',dateFrom).lte('perf_date',dateTo),
+      db.from('daily_performance').select('agent_id,agent_name,conformance,missing_sec,active_sec,target_sec,avg_aht,calls,personal_break_sec,work_pause_sec,wc_sec,perf_date').gte('perf_date',dateFrom).lte('perf_date',dateTo),
       db.from('excuses').select('*').eq('status','Approved').gte('excuse_date',dateFrom).lte('excuse_date',dateTo),
       db.from('annual_leave').select('*').eq('year',year),
       db.from('quality_scores').select('*').eq('month',monthName).eq('year',year),
@@ -495,9 +495,8 @@ async function loadKPIs(monthName, year) {
         const totalExtraSec   = agentPerf.reduce((s,p)=>s+Math.max(0,(p.active_sec||0)-(p.target_sec||0)),0);
         const totalTargetSec  = agentPerf.reduce((s,p)=>s+(p.target_sec||0),0);
 
-        // 2. CALCULATE WAIVED SECONDS — only from Break Adherence types
-        const _breakDevTypes = ['Over Break', 'Over WC'];
-        const agentDeviations = adherenceData.filter(d => d.agent_id === agent.id && _breakDevTypes.includes(d.deviation_type));
+        // 2. CALCULATE WAIVED SECONDS — ALL waived deviations (incl excuses)
+        const agentDeviations = adherenceData.filter(d => d.agent_id === agent.id);
         let waivedMinutes = 0;
         agentDeviations.forEach(d => {
           if (d.is_waived) waivedMinutes += (d.deviation_minutes || 0);
@@ -529,6 +528,9 @@ async function loadKPIs(monthName, year) {
       const excHours     = agentExcuses.length * 2;
       const excStr       = excHours > 0 ? excHours+' Hours' : 'None';
 
+      // Build a set of excused dates for this agent (used by break adherence)
+      const _excusedDates = new Set(agentExcuses.map(e => e.excuse_date));
+
       // Net Missing = missingTime directly (excuse deducted in xCALLY)
       // NOTE: Now Net Missing reflects the Waived Deviations because missingTime does.
       const netMissing = missingTime;
@@ -554,13 +556,13 @@ async function loadKPIs(monthName, year) {
         '<td style="font-size:11px;color:'+(netMissing==='Full Time'?'#10B981':'#EF4444')+';font-weight:700;">'+netMissing+'</td>'+
         '<td style="color:#F59E0B;font-weight:700;">'+excStr+'</td>'+
         (function(){
-          // ── Break Adherence Rate (budget-based) ──
-          // A "bad" day = break over budget OR WC over budget (beyond tolerance)
-          const workDays = agentPerf.length;
+          // ── Break Adherence Rate (budget-based, excused days excluded) ──
+          const nonExcused = agentPerf.filter(p => !_excusedDates.has(p.perf_date));
+          const workDays   = nonExcused.length;
           if (!workDays) return '<td style="color:var(--muted)">—</td>';
-          const violationDays = agentPerf.filter(p => {
-            const breakMin = Math.round(((p.personal_break_sec || 0) + (p.work_pause_sec || 0)) / 60);
-            const wcMin    = Math.round((p.wc_sec || 0) / 60);
+          const violationDays = nonExcused.filter(p => {
+            const breakMin  = Math.round(((p.personal_break_sec || 0) + (p.work_pause_sec || 0)) / 60);
+            const wcMin     = Math.round((p.wc_sec || 0) / 60);
             const overBreak = Math.max(0, breakMin - _breakBudget);
             const overWC    = Math.max(0, wcMin    - _wcBudget);
             return overBreak > _breakTol || overWC > _breakTol;
@@ -568,7 +570,8 @@ async function loadKPIs(monthName, year) {
           const adherentDays = workDays - violationDays;
           const rate         = Math.round((adherentDays / workDays) * 100);
           const pctColor     = rate === 100 ? '#10B981' : rate >= 80 ? '#F59E0B' : '#EF4444';
-          const tipText      = adherentDays + '/' + workDays + ' days • break budget';
+          const excNote      = _excusedDates.size > 0 ? ' (' + _excusedDates.size + ' excused)' : '';
+          const tipText      = adherentDays + '/' + workDays + ' days' + excNote;
           return '<td title="' + tipText + '" style="font-weight:800;color:' + pctColor + ';">' + rate + '%</td>';
         })()+
         '<td><input class="editable-cell" type="text" value="'+(quality?.score||'')+'" placeholder="—" onchange="markEdit(\''+agent.id+'\',\'score\',this.value)" style="color:var(--gold);font-weight:700;"></td>'+
