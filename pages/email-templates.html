@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/png" href="../logo.png">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOS Admin — Email Templates</title>
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(212,175,55,.1);color:var(--gold);margin:2px 4px 2px 0;white-space:nowrap;}
+.tag-add{cursor:pointer;border:1px dashed var(--border);background:transparent;color:var(--muted);transition:all .15s;}
+.tag-add:hover{border-color:var(--gold);color:var(--gold);}
+.tag-remove{cursor:pointer;margin-left:4px;color:var(--muted);font-size:10px;}
+.tag-remove:hover{color:#ef4444;}
+.email-chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;min-height:42px;align-items:center;}
+.email-chips input{flex:1;min-width:160px;border:none;background:transparent;color:var(--text);font-size:13px;font-family:inherit;outline:none;padding:4px;}
+.tmpl-preview{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:12px;font-size:13px;white-space:pre-wrap;line-height:1.7;color:var(--muted);max-height:250px;overflow-y:auto;}
+.placeholder{background:rgba(59,130,246,.12);color:#3B82F6;padding:1px 6px;border-radius:4px;font-size:12px;font-weight:700;font-family:monospace;}
+</style>
+</head>
+<body>
+<div class="admin-layout">
+<aside class="sidebar" id="sidebar"></aside>
+<div class="main-content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="sidebar-toggle" onclick="document.querySelector('.admin-layout').classList.toggle('sidebar-collapsed')"><i class="fas fa-bars"></i></button>
+      <div class="page-title">Email Templates</div>
+      <div class="breadcrumb"><i class="fas fa-circle" style="font-size:5px;color:var(--gold)"></i> Manage email templates for agents</div>
+    </div>
+    <div class="topbar-right">
+      <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()"><i class="fas fa-moon"></i></button>
+      <div class="admin-chip"><div class="admin-avatar" id="admin-avatar">A</div><span class="admin-name" id="admin-name">Admin</span></div>
+    </div>
+  </div>
+  <div class="page-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+      <div></div>
+      <button class="btn btn-primary" onclick="openEditor()"><i class="fas fa-plus"></i> New Template</button>
+    </div>
+    <div class="card"><div style="overflow-x:auto;">
+      <table class="data-table" id="tmpl-table">
+        <thead><tr><th>Name</th><th>Category</th><th>Subject</th><th>TO</th><th>CC</th><th>Status</th><th style="text-align:center;">Actions</th></tr></thead>
+        <tbody id="tmpl-body"><tr><td colspan="7"><div class="loading-wrap"><div class="spinner"></div></div></td></tr></tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+</div>
+
+<!-- EDITOR PANEL -->
+<div class="panel-overlay" id="panel-overlay" onclick="closeEditor()" style="display:none;"></div>
+<div class="slide-panel" id="slide-panel" style="max-width:640px;">
+  <div class="panel-header">
+    <div class="panel-title" id="editor-title">New Template</div>
+    <button class="panel-close" onclick="closeEditor()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="panel-body" style="padding:20px;">
+    <input type="hidden" id="e-id">
+    <div class="form-group"><label class="form-label">Template Name <span class="req">*</span></label>
+      <input id="e-name" class="form-input" placeholder="e.g. Send Marketing Collaboration Request"></div>
+    <div class="form-group"><label class="form-label">Category</label>
+      <input id="e-category" class="form-input" placeholder="e.g. Collaboration, Follow-Up, Reports" list="cat-list">
+      <datalist id="cat-list"></datalist></div>
+    <div class="form-group"><label class="form-label">Subject Line <span class="req">*</span></label>
+      <input id="e-subject" class="form-input" placeholder="e.g. Collaboration Request"></div>
+    <div class="form-group"><label class="form-label">TO Recipients</label>
+      <div class="email-chips" id="to-chips" onclick="this.querySelector('input')?.focus()">
+        <input placeholder="Type email + Enter" onkeydown="addChip(event,'to-chips')">
+      </div></div>
+    <div class="form-group"><label class="form-label">CC Recipients</label>
+      <div class="email-chips" id="cc-chips" onclick="this.querySelector('input')?.focus()">
+        <input placeholder="Type email + Enter" onkeydown="addChip(event,'cc-chips')">
+      </div></div>
+    <div class="form-group"><label class="form-label">Email Body</label>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Use <span class="placeholder">[Customer Name]</span> <span class="placeholder">[Phone]</span> <span class="placeholder">[Amount]</span> etc. as placeholders — agents will fill them in.</div>
+      <textarea id="e-body" class="form-input" rows="12" placeholder="Dear Sir,&#10;&#10;I hope this email finds you well.&#10;&#10;..." style="font-size:13px;line-height:1.7;"></textarea></div>
+    <div class="form-group"><label class="form-label">Sort Order</label>
+      <input id="e-sort" type="number" class="form-input" value="0" style="width:100px;"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeEditor()">Cancel</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveTemplate()"><i class="fas fa-save"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+<div class="modal-overlay" id="modal-overlay"><div class="modal-card"><h3 id="modal-title">Confirm</h3><p id="modal-msg"></p><div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-danger" id="modal-confirm">Confirm</button></div></div></div>
+
+<script src="../js/supabase.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/audit.js"></script>
+<script src="../js/ui.js"></script>
+<script>
+renderSidebar(); applyThemeIcon();
+const session = checkAuth();
+if(session){document.getElementById('admin-name').innerText=session.username||'Admin';document.getElementById('admin-avatar').innerText=initials(session.username||'Admin');}
+
+let templates=[], editingId=null;
+
+async function loadTemplates(){
+  const{data,error}=await db.from('email_templates').select('*').order('category').order('sort_order').order('name');
+  if(error){showToast(error.message,'error');return;}
+  templates=data||[];
+  renderTable();
+}
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function renderTable(){
+  const tb=document.getElementById('tmpl-body');
+  if(!templates.length){tb.innerHTML='<tr><td colspan="7"><div class="empty-state"><span class="empty-icon">📧</span>No templates yet — click New Template to create one</div></td></tr>';return;}
+  tb.innerHTML=templates.map(t=>{
+    const toStr=(t.to_emails||[]).map(e=>'<span class="tag">'+esc(e)+'</span>').join('')||'<span style="color:var(--muted);">—</span>';
+    const ccStr=(t.cc_emails||[]).map(e=>'<span class="tag">'+esc(e)+'</span>').join('')||'<span style="color:var(--muted);">—</span>';
+    const status=t.is_active?'<span class="badge badge-success">Active</span>':'<span class="badge badge-danger">Hidden</span>';
+    return`<tr style="${t.is_active?'':'opacity:.5;'}">
+      <td style="font-weight:700;">${esc(t.name)}</td>
+      <td><span class="tag">${esc(t.category||'General')}</span></td>
+      <td style="font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.subject)}</td>
+      <td>${toStr}</td><td>${ccStr}</td><td>${status}</td>
+      <td style="text-align:center;">
+        <button class="btn btn-ghost btn-sm" onclick="editTemplate('${t.id}')"><i class="fas fa-edit"></i></button>
+        <button class="btn btn-ghost btn-sm" onclick="duplicateTemplate('${t.id}')" title="Duplicate"><i class="fas fa-copy"></i></button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleActive('${t.id}',${t.is_active})" title="${t.is_active?'Hide':'Show'}"><i class="fas fa-${t.is_active?'eye-slash':'eye'}"></i></button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteTemplate('${t.id}')" style="color:#ef4444;"><i class="fas fa-trash"></i></button>
+      </td></tr>`;
+  }).join('');
+}
+
+// ── CHIPS (TO/CC email tags) ──
+function addChip(e,containerId){
+  if(e.key!=='Enter'&&e.key!==','&&e.key!=='Tab')return;
+  e.preventDefault();
+  const input=e.target, val=input.value.replace(/,/g,'').trim();
+  if(!val)return;
+  const chip=document.createElement('span');
+  chip.className='tag';
+  chip.innerHTML=esc(val)+' <span class="tag-remove" onclick="this.parentElement.remove()">✕</span>';
+  input.parentElement.insertBefore(chip,input);
+  input.value='';
+}
+function getChips(containerId){
+  return[...document.querySelectorAll('#'+containerId+' .tag')].map(t=>t.textContent.replace('✕','').trim()).filter(Boolean);
+}
+function setChips(containerId,emails){
+  const c=document.getElementById(containerId);
+  c.querySelectorAll('.tag').forEach(t=>t.remove());
+  const input=c.querySelector('input');
+  (emails||[]).forEach(email=>{
+    const chip=document.createElement('span');
+    chip.className='tag';
+    chip.innerHTML=esc(email)+' <span class="tag-remove" onclick="this.parentElement.remove()">✕</span>';
+    c.insertBefore(chip,input);
+  });
+}
+
+// ── EDITOR ──
+function openEditor(){
+  editingId=null;
+  document.getElementById('editor-title').innerText='New Template';
+  document.getElementById('e-id').value='';
+  document.getElementById('e-name').value='';
+  document.getElementById('e-category').value='';
+  document.getElementById('e-subject').value='';
+  document.getElementById('e-body').value='';
+  document.getElementById('e-sort').value='0';
+  setChips('to-chips',[]);setChips('cc-chips',[]);
+  // Populate category datalist
+  const cats=[...new Set(templates.map(t=>t.category).filter(Boolean))];
+  document.getElementById('cat-list').innerHTML=cats.map(c=>'<option value="'+esc(c)+'">').join('');
+  document.getElementById('panel-overlay').style.display='block';
+  document.getElementById('slide-panel').classList.add('open');
+}
+function closeEditor(){
+  document.getElementById('panel-overlay').style.display='none';
+  document.getElementById('slide-panel').classList.remove('open');
+}
+function editTemplate(id){
+  const t=templates.find(x=>x.id===id);if(!t)return;
+  editingId=id;
+  document.getElementById('editor-title').innerText='Edit Template';
+  document.getElementById('e-name').value=t.name||'';
+  document.getElementById('e-category').value=t.category||'';
+  document.getElementById('e-subject').value=t.subject||'';
+  document.getElementById('e-body').value=t.body||'';
+  document.getElementById('e-sort').value=t.sort_order||0;
+  setChips('to-chips',t.to_emails||[]);
+  setChips('cc-chips',t.cc_emails||[]);
+  const cats=[...new Set(templates.map(x=>x.category).filter(Boolean))];
+  document.getElementById('cat-list').innerHTML=cats.map(c=>'<option value="'+esc(c)+'">').join('');
+  document.getElementById('panel-overlay').style.display='block';
+  document.getElementById('slide-panel').classList.add('open');
+}
+
+async function saveTemplate(){
+  const name=document.getElementById('e-name').value.trim();
+  const subject=document.getElementById('e-subject').value.trim();
+  if(!name||!subject){showToast('Name and Subject are required','warning');return;}
+  const row={
+    name, subject,
+    category:document.getElementById('e-category').value.trim()||'General',
+    body:document.getElementById('e-body').value,
+    to_emails:getChips('to-chips'),
+    cc_emails:getChips('cc-chips'),
+    sort_order:parseInt(document.getElementById('e-sort').value)||0,
+    updated_by:session?.username||'Admin',
+    updated_at:new Date().toISOString()
+  };
+  const btn=document.getElementById('save-btn');btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Saving…';
+  try{
+    if(editingId){
+      const{error}=await db.from('email_templates').update(row).eq('id',editingId);
+      if(error)throw error;
+      showToast('Template updated','success');
+    }else{
+      row.created_by=session?.username||'Admin';
+      const{error}=await db.from('email_templates').insert(row);
+      if(error)throw error;
+      showToast('Template created','success');
+    }
+    closeEditor();loadTemplates();
+  }catch(e){showToast(e.message,'error');}
+  finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-save"></i> Save';}
+}
+
+async function toggleActive(id,current){
+  const{error}=await db.from('email_templates').update({is_active:!current,updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){showToast(error.message,'error');return;}
+  showToast(current?'Template hidden':'Template activated','success');
+  loadTemplates();
+}
+async function duplicateTemplate(id){
+  const t=templates.find(x=>x.id===id);if(!t)return;
+  const{error}=await db.from('email_templates').insert({
+    name:t.name+' (Copy)',category:t.category,subject:t.subject,body:t.body,
+    to_emails:t.to_emails,cc_emails:t.cc_emails,sort_order:t.sort_order,
+    created_by:session?.username||'Admin'
+  });
+  if(error){showToast(error.message,'error');return;}
+  showToast('Duplicated','success');loadTemplates();
+}
+function deleteTemplate(id){
+  openModal('Delete Template','Are you sure? This cannot be undone.',async()=>{
+    const{error}=await db.from('email_templates').delete().eq('id',id);
+    if(error){showToast(error.message,'error');return;}
+    showToast('Deleted','success');loadTemplates();closeModal();
+  });
+}
+
+loadTemplates();
+</script>
+</body>
+</html>
