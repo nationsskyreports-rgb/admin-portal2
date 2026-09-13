@@ -561,10 +561,10 @@ async function loadKPIs(monthName, year) {
           const workDays   = nonExcused.length;
           if (!workDays) return '<td style="color:var(--muted)">—</td>';
           const violationDays = nonExcused.filter(p => {
-            const breakMin  = Math.round(((p.personal_break_sec || 0) + (p.work_pause_sec || 0)) / 60);
+            const breakMin  = Math.round((p.personal_break_sec || 0) / 60);  // break1 + lunch + break2 only
             const wcMin     = Math.round((p.wc_sec || 0) / 60);
             const overBreak = Math.max(0, breakMin - _breakBudget);
-            const overWC    = Math.max(0, wcMin    - _wcBudget);
+            const overWC    = Math.max(0, wcMin - _wcBudget);
             return overBreak > _breakTol || overWC > _breakTol;
           }).length;
           const adherentDays = workDays - violationDays;
