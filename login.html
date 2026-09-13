@@ -547,12 +547,13 @@ function showErr(msg) {
 }
 
 async function doLogin() {
-  const username = document.getElementById('username').value.trim().toLowerCase();
+  const rawUsername = document.getElementById('username').value.trim().toLowerCase();
+  const username = rawUsername.replace(/\s+/g, '.');  // "kareem rashad" → "kareem.rashad"
   const password = document.getElementById('password').value;
   const btn      = document.getElementById('login-btn');
   const err      = document.getElementById('error-msg');
 
-  if (!username || !password) {
+  if (!rawUsername || !password) {
     showErr('Please enter username and password.');
     return;
   }
