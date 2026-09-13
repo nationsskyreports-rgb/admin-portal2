@@ -375,7 +375,7 @@ async function loadData() {
     const logoutTol = CFG.tolerance;
 
     tableData = (data || []).map(r => {
-      const breakMin = Math.round(((r.personal_break_sec || 0) + (r.work_pause_sec || 0)) / 60);
+      const breakMin = Math.round((r.personal_break_sec || 0) / 60);
       const wcMin    = Math.round((r.wc_sec || 0) / 60);
       const overBreak = Math.max(0, breakMin - CFG.breakBudget);
       const overWC    = Math.max(0, wcMin - CFG.wcBudget);
