@@ -619,7 +619,7 @@ function processData() {
       // ── NEW: accumulate personal-break & work-pause DURATIONS (duration-based adherence) ──
       // Personal breaks count against the 1h allowance; work pauses (BACKOFFICE/ACW) do not.
       if (evtEvent === 'PAUSE') {
-        const PERSONAL_PAUSE = ['break 1', 'break 2', 'lunch', 'wc'];
+        const PERSONAL_PAUSE = ['break 1', 'break 2', 'lunch'];  // WC excluded — it has its own 15-min budget
         const WORK_PAUSE     = ['backoffice', 'acw'];
         const pdur = timeToSec(duration);
         if (pdur > 0) {
