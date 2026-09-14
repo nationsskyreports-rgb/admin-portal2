@@ -586,7 +586,7 @@ async function loadReport() {
 async function loadAgentsAndShifts() {
   if (allAgents.length) return; // cached
   const [{ data: agents }, { data: shifts }] = await Promise.all([
-    db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name'),
+    db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name'),
     db.from('shift_types').select('*').eq('is_active', true),
   ]);
   allAgents     = agents  || [];
