@@ -185,7 +185,7 @@ let allSchedule = [];
 let statusFilter = '';
 
 async function init() {
-  const { data } = await db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name');
+  const { data } = await db.from('agents').select('id,formal_name').eq('status','Active').neq('role','Manager').order('formal_name');
   allAgents = data||[];
   await loadAll();
 }
