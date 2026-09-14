@@ -4,7 +4,7 @@
   const first = today.slice(0,7) + '-01';
   document.getElementById('bc-from').value = first;
   document.getElementById('bc-to').value   = today;
-  db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name')
+  db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name')
     .then(({ data }) => {
       const sel = document.getElementById('bc-agent');
       (data||[]).forEach(a => sel.add(new Option(a.formal_name, a.id)));
