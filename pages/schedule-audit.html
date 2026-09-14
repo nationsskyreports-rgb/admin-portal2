@@ -209,7 +209,7 @@ async function loadAudit() {
 
   const [wkRes, agRes, reqRes, schRes] = await Promise.all([
     db.from('schedule_weeks').select('*').eq('id', weekId).single(),
-    db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name'),
+    db.from('agents').select('id,formal_name').eq('status','Active').neq('role','Manager').order('formal_name'),
     db.from('requests').select('*').eq('type','Schedule Request'),
     db.from('schedule').select('*').eq('week_id', weekId)
   ]);
