@@ -522,6 +522,8 @@ function renderBreakdown() {
 
   document.getElementById('bd-count').innerText = agents.length + ' agent(s)';
 
+  const includeLoginOut = document.getElementById('chk-loginout')?.checked || false;
+
   grid.innerHTML = agents.map((ag, idx) => {
     const total      = ag.rows.length;
     const violations = ag.rows.filter(r => r.isViolation).length;
@@ -533,6 +535,8 @@ function renderBreakdown() {
     const avgWC    = Math.round(ag.rows.reduce((s, r) => s + r.wcMin, 0) / total);
     const totalOverBreak = ag.rows.reduce((s, r) => s + Math.max(0, r.overBreak), 0);
     const totalOverWC    = ag.rows.reduce((s, r) => s + Math.max(0, r.overWC), 0);
+    const totalLate      = ag.rows.reduce((s, r) => s + (r.lateLogin || 0), 0);
+    const totalEarly     = ag.rows.reduce((s, r) => s + (r.earlyLogout || 0), 0);
 
     // ── daily detail rows ──
     const sorted = [...ag.rows].sort((a, b) => b.perf_date.localeCompare(a.perf_date));
@@ -547,6 +551,18 @@ function renderBreakdown() {
         ? '<span class="bd-chip bd-chip-over">OVER</span>'
         : '<span class="bd-chip bd-chip-ok">OK</span>';
 
+      // Login/Logout cells (only when toggle is on)
+      let loginCells = '';
+      if (includeLoginOut) {
+        const lgColor = r.lateLogin  > 0 ? '#EF4444' : '#10B981';
+        const loColor = r.earlyLogout > 0 ? '#EF4444' : '#10B981';
+        const lgTxt = r.login_time ? fmtTime(r.login_time) + (r.lateLogin > 0 ? ' (+' + r.lateLogin + 'm)' : '') : '—';
+        const loTxt = r.logout_time ? fmtTime(r.logout_time) + (r.earlyLogout > 0 ? ' (-' + r.earlyLogout + 'm)' : '') : '—';
+        loginCells =
+          '<td style="color:' + lgColor + ';font-weight:700;font-size:11px;font-family:\'JetBrains Mono\',monospace;">' + lgTxt + '</td>' +
+          '<td style="color:' + loColor + ';font-weight:700;font-size:11px;font-family:\'JetBrains Mono\',monospace;">' + loTxt + '</td>';
+      }
+
       return '<tr' + (r.isViolation ? ' style="background:rgba(239,68,68,.04);"' : '') + '>' +
         '<td style="font-weight:700;color:var(--gold);white-space:nowrap;font-family:inherit;font-size:11px;">' + dayLabel + '</td>' +
         '<td style="color:' + bColor + ';font-weight:700;">' + r.breakMin + 'm</td>' +
@@ -555,11 +571,19 @@ function renderBreakdown() {
         '<td style="color:' + wColor + ';font-weight:700;">' + r.wcMin + 'm</td>' +
         '<td><div class="bd-bar-track"><div class="bd-bar-fill" style="width:' + wcPct + '%;background:' + wColor + ';"></div></div></td>' +
         '<td style="color:' + (r.overWC > 0 ? '#EF4444' : 'var(--muted)') + ';font-weight:700;">' + (r.overWC > 0 ? '+' + r.overWC : '—') + '</td>' +
+        loginCells +
         '<td>' + statusChip + '</td>' +
         '</tr>';
     }).join('');
 
     const ini = ag.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+
+    const loginStatCards = includeLoginOut
+      ? '<div class="bd-stat"><div class="bd-stat-val" style="color:#EF4444;">' + totalLate + 'm</div><div class="bd-stat-lbl">Late Login</div></div>' +
+        '<div class="bd-stat"><div class="bd-stat-val" style="color:#F97316;">' + totalEarly + 'm</div><div class="bd-stat-lbl">Early Logout</div></div>'
+      : '';
+
+    const loginHeaders = includeLoginOut ? '<th>Login</th><th>Logout</th>' : '';
 
     return '<div class="bd-card" id="bd-card-' + idx + '">' +
       '<div class="bd-head" onclick="toggleBdCard(' + idx + ')">' +
@@ -577,6 +601,7 @@ function renderBreakdown() {
         '<div class="bd-stat"><div class="bd-stat-val" style="color:#EF4444;">' + violations + '</div><div class="bd-stat-lbl">Violations</div></div>' +
         '<div class="bd-stat"><div class="bd-stat-val" style="color:#F59E0B;">' + totalOverBreak + 'm</div><div class="bd-stat-lbl">Over Break</div></div>' +
         '<div class="bd-stat"><div class="bd-stat-val" style="color:#8B5CF6;">' + totalOverWC + 'm</div><div class="bd-stat-lbl">Over WC</div></div>' +
+        loginStatCards +
       '</div>' +
       '<div class="bd-detail">' +
         '<table class="bd-detail-table">' +
@@ -584,6 +609,7 @@ function renderBreakdown() {
             '<th style="text-align:left;">Date</th>' +
             '<th>Break</th><th style="min-width:70px;">Bar</th><th>Over</th>' +
             '<th>WC</th><th style="min-width:70px;">Bar</th><th>Over</th>' +
+            loginHeaders +
             '<th>Status</th>' +
           '</tr></thead>' +
           '<tbody>' + detailRows + '</tbody>' +
