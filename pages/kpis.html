@@ -396,7 +396,7 @@ let annualEdits = {};
 let currentTab  = 'kpi';
 
 async function init() {
-  const { data } = await db.from('agents').select('id,formal_name,email').eq('status','Active').order('formal_name');
+  const { data } = await db.from('agents').select('id,formal_name,email').eq('status','Active').eq('role','Agent').order('formal_name');
   allAgents = data || [];
   const sel = document.getElementById('l-agent');
   allAgents.forEach(a => sel.add(new Option(a.formal_name, a.id)));
