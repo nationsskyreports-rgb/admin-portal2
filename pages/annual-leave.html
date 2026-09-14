@@ -210,7 +210,7 @@ async function loadData() {
   tbody.innerHTML = '<tr><td colspan="17"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
   try {
     const { data: agents } = await db.from('agents')
-      .select('id, formal_name').eq('status','Active').order('formal_name');
+      .select('id, formal_name').eq('status','Active').eq('role','Agent').order('formal_name');
     const { data: leaves } = await db.from('annual_leave')
       .select('*').eq('year', parseInt(year));
 
@@ -244,7 +244,7 @@ async function syncFromSchedule() {
   btn.innerHTML   = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
 
   try {
-    const { data: agents } = await db.from('agents').select('id,formal_name').eq('status','Active');
+    const { data: agents } = await db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent');
     const { data: leaves } = await db.from('schedule')
       .select('agent_id,shift_date')
       .in('day_type', ['Annual','Casual'])
