@@ -380,7 +380,7 @@ let currentTab   = 'new';
 // ── INIT ──
 async function init() {
   const [agentsRes, questionsRes, templatesRes] = await Promise.all([
-    db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name'),
+    db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name'),
     db.from('quality_questions').select('*').eq('is_active',true).order('order_num'),
     db.from('quality_note_templates').select('*').order('created_at'),
   ]);
