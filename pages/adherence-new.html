@@ -305,15 +305,25 @@ let CFG = { breakBudget: 60, wcBudget: 15, tolerance: 2 };
   const sel = document.getElementById('f-agent');
   allAgents.forEach(a => sel.add(new Option(a.formal_name, a.id)));
 
-  const { data: cfgRows } = await db.from('adherence_config').select('daily_break_budget,daily_wc_budget,break_tolerance').limit(1);
+  const { data: cfgRows } = await db.from('adherence_config').select('daily_break_budget,daily_wc_budget,break_tolerance,include_login_logout').limit(1);
   if (cfgRows && cfgRows[0]) {
     CFG.breakBudget = cfgRows[0].daily_break_budget || 60;
     CFG.wcBudget    = cfgRows[0].daily_wc_budget    || 15;
     CFG.tolerance   = cfgRows[0].break_tolerance     || 2;
+    document.getElementById('chk-loginout').checked = !!cfgRows[0].include_login_logout;
   }
   document.getElementById('cfg-break').value = CFG.breakBudget;
   document.getElementById('cfg-wc').value    = CFG.wcBudget;
   document.getElementById('cfg-tol').value   = CFG.tolerance;
+
+  // Save the toggle to config whenever it changes (syncs with KPIs)
+  document.getElementById('chk-loginout').addEventListener('change', async function() {
+    await db.from('adherence_config')
+      .update({ include_login_logout: this.checked, updated_at: new Date().toISOString() })
+      .not('id', 'is', null);
+    showToast(this.checked ? 'Login/Logout now counts in KPIs' : 'Login/Logout excluded from KPIs', 'success');
+    if (tableData.length) { renderTable(); renderKPIs(); }
+  });
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
   document.getElementById('f-from').value = today.slice(0,7) + '-01';
