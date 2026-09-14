@@ -331,7 +331,7 @@ async function loadAll() {
   }
 
 async function loadAgents() {
-  const { data } = await db.from('agents').select('id,formal_name,xcally_id').eq('status','Active').order('formal_name');
+  const { data } = await db.from('agents').select('id,formal_name,xcally_id').eq('status','Active').eq('role','Agent').order('formal_name');
   allAgents = data || [];
 }
 
