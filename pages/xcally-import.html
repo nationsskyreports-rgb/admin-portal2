@@ -465,7 +465,7 @@ let viewModeVal   = 'day';
 const TODAY       = getToday();
 
 async function init() {
-  const { data } = await db.from('agents').select('id,formal_name,xcally_name').eq('status','Active').order('formal_name');
+  const { data } = await db.from('agents').select('id,formal_name,xcally_name').eq('status','Active').eq('role','Agent').order('formal_name');
   allAgents = data || [];
   // History agent filter
   const sel = document.getElementById('filter-agent');
