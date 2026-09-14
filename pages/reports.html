@@ -611,7 +611,7 @@ async function loadKPITable(monthName, year) {
   tbody.innerHTML = '<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>';
   try {
     const [agentsRes, perfRes, excusesRes, annualRes, qualityRes] = await Promise.all([
-      db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name'),
+      db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name'),
       db.from('daily_performance').select('agent_id,conformance,missing_sec,active_sec,target_sec,avg_aht,calls').gte('perf_date',dateFrom).lte('perf_date',dateTo),
       db.from('excuses').select('agent_id').eq('status','Approved').gte('excuse_date',dateFrom).lte('excuse_date',dateTo),
       db.from('annual_leave').select('*').eq('year',year),
@@ -953,7 +953,7 @@ async function exportExcel() {
       db.from('call_logs').select('call_reason,agent_name,logged_at,business_relativity,sales_call_requested,project').gte('logged_at', dateFrom).lte('logged_at', dateTo),
       db.from('whatsapp_logs').select('call_reason,agent_name,logged_at,business_relativity,sales_call_requested,project').gte('logged_at', dateFrom).lte('logged_at', dateTo),
       db.from('call_reasons').select('name,category').eq('is_active', true),
-      db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name'),
+      db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name'),
       db.from('daily_performance').select('agent_id,conformance,missing_sec,active_sec,target_sec,avg_aht,calls,perf_date').gte('perf_date', dateFromD).lte('perf_date', dateToD),
       db.from('excuses').select('agent_id').eq('status','Approved').gte('excuse_date', dateFromD).lte('excuse_date', dateToD),
       db.from('annual_leave').select('*').eq('year', year),
