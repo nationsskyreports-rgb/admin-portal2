@@ -300,7 +300,7 @@ let CFG = { breakBudget: 60, wcBudget: 15, tolerance: 2 };
 
 // ── INIT ──
 (async function init() {
-  const { data: agents } = await db.from('agents').select('id,formal_name').eq('status','Active').order('formal_name');
+  const { data: agents } = await db.from('agents').select('id,formal_name').eq('status','Active').eq('role','Agent').order('formal_name');
   allAgents = agents || [];
   const sel = document.getElementById('f-agent');
   allAgents.forEach(a => sel.add(new Option(a.formal_name, a.id)));
