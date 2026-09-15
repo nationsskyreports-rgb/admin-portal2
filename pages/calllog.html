@@ -137,6 +137,11 @@
             <select id="reason-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
               <option value="">All Categories</option>
             </select>
+            <select id="status-filter" class="form-input" style="width:auto;padding:8px 12px;" onchange="loadAll()">
+              <option value="">All Statuses</option>
+              <option value="open">🟡 Open</option>
+              <option value="closed">✅ Closed</option>
+            </select>
             <!-- Export Dropdown -->
             <div class="export-dd" style="position:relative;">
               <button id="export-main-btn"
@@ -192,6 +197,7 @@
                   <th>Category</th>
                   <th>Agent</th>
                   <th>Source</th>
+                  <th>Status</th>
                   <th>Direction</th>
                   <th>Channel</th>
                   <th>Media</th>
@@ -200,7 +206,7 @@
                 </tr>
               </thead>
               <tbody id="calls-tbody">
-                <tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
+                <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -321,6 +327,7 @@ function getFilters() {
     agent:    document.getElementById('agent-filter').value,
     project:  document.getElementById('project-filter').value,
     reason:   document.getElementById('reason-filter').value,
+    status:   document.getElementById('status-filter').value,
   };
 }
 
@@ -338,6 +345,7 @@ function applyFilters(q, filters) {
   if (filters.agent)    q = q.ilike('agent_name', filters.agent);
   if (filters.project)  q = q.eq('project', filters.project);
   if (filters.reason)   q = q.eq('call_reason', filters.reason);
+  if (filters.status)   q = q.eq('status', filters.status);
   if (searchQuery)      q = q.or(`customer_name.ilike.%${searchQuery}%,customer_mobile.ilike.%${searchQuery}%,call_reason.ilike.%${searchQuery}%,project.ilike.%${searchQuery}%`);
   return q;
 }
@@ -468,7 +476,7 @@ async function loadCalls() {
   const tbody = document.getElementById('calls-tbody');
   const f     = getFilters();
   const tables = getTables();
-  const cols = 12;
+  const cols = 13;
 
   tbody.innerHTML = `<tr><td colspan="${cols}"><div class="loading-wrap"><div class="spinner"></div></div></td></tr>`;
 
@@ -529,6 +537,9 @@ async function fetchFromTable(table) {
       const srcBadge = c._src === 'wa'
         ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#16a34a;border:1px solid #86efac;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">💬 WA</span>`
         : `<span style="display:inline-flex;align-items:center;gap:4px;background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">📞 Call</span>`;
+      const statusBadge = c.status === 'open'
+        ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.12);color:#D97706;border:1px solid rgba(245,158,11,0.3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">🟡 Open</span>`
+        : `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">✅ Closed</span>`;
       const catLabel = c.category_1 ? c.category_1 + ' → ' + (c.call_reason||'') : (c.call_reason || '—');
       return `
         <tr>
@@ -539,6 +550,7 @@ async function fetchFromTable(table) {
           <td><span style="font-size:11px;font-weight:600;color:var(--text);">${catLabel}</span></td>
           <td style="font-size:12px;">${c.agent_name || '—'}</td>
           <td>${srcBadge}</td>
+          <td>${statusBadge}</td>
           <td>${c.call_direction === 'outbound'
             ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.12);color:#D97706;border:1px solid rgba(245,158,11,0.3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">📤 Out</span>`
             : `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">📥 In</span>`
@@ -590,10 +602,17 @@ async function viewRecord(id, src) {
     ['Date/Time',            formatDateTime(c.logged_at)],
   ];
 
+  const statusChip = c.status === 'open'
+    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.15);color:#D97706;border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;">🟡 OPEN</span>`
+    : `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.15);color:#059669;border:1px solid rgba(16,185,129,0.35);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;">✅ CLOSED</span>`;
+
   document.getElementById('panel-title').innerText = c.customer_name || 'Record Details';
   document.getElementById('panel-body').innerHTML = `
     <div style="background:${srcBg};border:1px solid ${srcBorder};border-radius:12px;padding:12px 16px;margin-bottom:16px;">
-      <div style="font-size:14px;font-weight:800;color:${srcColor};">${srcLabel} — ${c.project ? c.project + ' · ' : ''}${c.call_reason || '—'}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="font-size:14px;font-weight:800;color:${srcColor};">${srcLabel} — ${c.project ? c.project + ' · ' : ''}${c.call_reason || '—'}</div>
+        ${statusChip}
+      </div>
       <div style="font-size:11px;color:var(--muted);margin-top:2px;">${c.agent_name || '—'} · ${formatDateTime(c.logged_at)}</div>
     </div>
     ${fields.filter(([,v])=>v).map(([k,v])=>`
@@ -608,9 +627,53 @@ async function viewRecord(id, src) {
         <div style="font-size:13px;color:var(--text);line-height:1.6;">${c.extra_notes}</div>
       </div>
     ` : ''}
+    <div id="panel-followups" style="margin-top:14px;"></div>
   `;
-  document.getElementById('panel-footer').innerHTML = `<button class="btn btn-ghost" onclick="closePanel()">Close</button>`;
+  document.getElementById('panel-footer').innerHTML = `
+    <button class="btn btn-ghost" onclick="closePanel()">Close</button>
+    ${c.status === 'open'
+      ? `<button class="btn btn-success" onclick="setRecordStatus('${c.id}','${table}','closed')"><i class="fas fa-check"></i> Mark Closed</button>`
+      : `<button class="btn btn-warning" onclick="setRecordStatus('${c.id}','${table}','open')"><i class="fas fa-redo"></i> Reopen</button>`}
+  `;
   openPanel();
+  loadFollowupsForRecord(c.id, table);
+}
+
+// ── Follow-ups for a record ──
+async function loadFollowupsForRecord(id, table) {
+  const wrap = document.getElementById('panel-followups');
+  if (!wrap) return;
+  try {
+    const { data } = await db.from('call_reminders')
+      .select('*').eq('call_log_id', id).eq('source_table', table)
+      .order('reminder_date', { ascending: false }).order('reminder_time', { ascending: false });
+    if (!data || !data.length) return;
+    wrap.innerHTML = `
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">⏰ Follow-ups</div>
+      ${data.map(r => `
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+          <div>${r.is_done ? '✅' : '⏳'}</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;color:var(--text);">${r.reminder_date || '—'}${r.reminder_time ? ' · ' + r.reminder_time.substring(0,5) : ''} <span style="color:var(--muted);font-weight:600;">by ${r.agent_name || '—'}</span></div>
+            <div style="color:var(--muted);margin-top:2px;">${escapeHtml(r.note || '(no note)')}</div>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  } catch(e) { /* silent */ }
+}
+
+// ── Toggle status from the detail panel ──
+async function setRecordStatus(id, table, status) {
+  try {
+    const { error } = await db.from(table).update({ status }).eq('id', id);
+    if (error) throw error;
+    showToast(status === 'open' ? 'Reopened' : 'Marked as Closed', 'success');
+    closePanel();
+    loadAll();
+  } catch(e) {
+    showToast('Failed to update status: ' + e.message, 'error');
+  }
 }
 
 // ── Keep old viewCall alias for backwards compat ──
