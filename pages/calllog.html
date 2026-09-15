@@ -599,7 +599,9 @@ async function viewRecord(id, src) {
     ['Sales Call Requested', c.sales_call_requested],
     ['Budget',               c.budget],
     ['Unit Type',            c.unit_type],
+    ['Unit Code',            c.unit_code],
     ['Date/Time',            formatDateTime(c.logged_at)],
+    ['Closed Date',          c.closed_at ? formatDateTime(c.closed_at) : null],
   ];
 
   const statusChip = c.status === 'open'
@@ -666,7 +668,10 @@ async function loadFollowupsForRecord(id, table) {
 // ── Toggle status from the detail panel ──
 async function setRecordStatus(id, table, status) {
   try {
-    const { error } = await db.from(table).update({ status }).eq('id', id);
+    const { error } = await db.from(table).update({
+      status,
+      closed_at: status === 'closed' ? new Date().toISOString() : null,
+    }).eq('id', id);
     if (error) throw error;
     showToast(status === 'open' ? 'Reopened' : 'Marked as Closed', 'success');
     closePanel();
@@ -746,7 +751,7 @@ async function exportProjectLeads() {
 
     // New records (have project column set)
     let qNew = db.from('call_logs')
-      .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,extra_notes')
+      .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
       .neq('project', '').not('project', 'is', null)
       .order('logged_at', { ascending: false });
 
@@ -768,7 +773,7 @@ async function exportProjectLeads() {
     const projNames = (projReasons || []).map(r => r.name);
     if (projNames.length) {
       let qOld = db.from('call_logs')
-        .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,extra_notes')
+        .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
         .in('call_reason', projNames)
         .or('project.is.null,project.eq.')
         .order('logged_at', { ascending: false });
@@ -795,11 +800,13 @@ async function exportProjectLeads() {
     }
 
     // 3. بناء CSV
-    const headers = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile', 'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Notes'];
+    const headers = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile', 'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Unit Code', 'Status', 'Closed Date', 'Notes'];
     const rows = allRecords.map(r => {
       const dt   = r.logged_at ? new Date(r.logged_at) : null;
       const date = dt ? dt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) : '';
       const time = dt ? dt.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
+      const closedDt = r.closed_at ? new Date(r.closed_at) : null;
+      const closedStr = closedDt ? closedDt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) + ' ' + closedDt.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
       return [
         date,
         time,
@@ -812,6 +819,9 @@ async function exportProjectLeads() {
         r.agent_name            || '',
         r.call_direction === 'outbound' ? 'Outbound' : 'Inbound',
         r.communication_channel || '',
+        r.unit_code             || '',
+        r.status === 'open' ? 'Open' : 'Closed',
+        closedStr,
         (r.extra_notes || '').replace(/\n/g, ' '),
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     });
@@ -869,7 +879,7 @@ async function exportAllCalls() {
 
     async function fetchAllFromTable(table) {
       let q = db.from(table)
-        .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,media_source,extra_notes')
+        .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,media_source,unit_code,status,closed_at,extra_notes')
         .order('logged_at', { ascending: false });
 
       if (f.dateFrom) q = q.gte('logged_at', localDateToUTCStart(f.dateFrom));
@@ -904,12 +914,14 @@ async function exportAllCalls() {
     }
 
     const csvHeaders = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile',
-                        'Project', 'Category 1', 'Category 2', 'Agent', 'Channel', 'Source', 'Media', 'Notes'];
+                        'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Source', 'Media', 'Unit Code', 'Status', 'Closed Date', 'Notes'];
 
     const rows = allRecords.map(r => {
       const dt   = r.logged_at ? new Date(r.logged_at) : null;
       const date = dt ? dt.toLocaleDateString('en-CA',  { timeZone: 'Africa/Cairo' }) : '';
       const time = dt ? dt.toLocaleTimeString('en-GB',  { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
+      const closedDt = r.closed_at ? new Date(r.closed_at) : null;
+      const closedStr = closedDt ? closedDt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) + ' ' + closedDt.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
       return [
         date, time,
         r.customer_name         || '',
@@ -923,6 +935,9 @@ async function exportAllCalls() {
         r.communication_channel || '',
         r._src                  || '',
         r.media_source          || '',
+        r.unit_code             || '',
+        r.status === 'open' ? 'Open' : 'Closed',
+        closedStr,
         (r.extra_notes || '').replace(/\n/g, ' '),
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     });
