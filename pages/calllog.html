@@ -734,6 +734,40 @@ function formatDateTime(d) {
 
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 
+/* ── Attach the latest follow-up (date/time/note) from call_reminders to each exported record ── */
+async function attachFollowups(records) {
+  const idsByTable = {};
+  records.forEach(r => {
+    if (!r.id || !r._table) return;
+    (idsByTable[r._table] = idsByTable[r._table] || []).push(r.id);
+  });
+
+  const latestByKey = {};
+  for (const table of Object.keys(idsByTable)) {
+    const ids = idsByTable[table];
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      const { data } = await db.from('call_reminders')
+        .select('call_log_id,reminder_date,reminder_time,note')
+        .eq('source_table', table)
+        .in('call_log_id', chunk)
+        .order('reminder_date', { ascending: false })
+        .order('reminder_time', { ascending: false });
+      (data || []).forEach(rem => {
+        const key = table + '__' + rem.call_log_id;
+        if (!latestByKey[key]) latestByKey[key] = rem; // first hit per key = latest, thanks to the ordering above
+      });
+    }
+  }
+
+  records.forEach(r => {
+    const rem = latestByKey[r._table + '__' + r.id];
+    r._followupDate = rem ? (rem.reminder_date || '') : '';
+    r._followupTime = rem && rem.reminder_time ? rem.reminder_time.substring(0, 5) : '';
+    r._followupNote = rem ? (rem.note || '') : '';
+  });
+}
+
 /* ── Export Project Leads ── */
 async function exportProjectLeads() {
   const btn     = document.getElementById('export-main-btn');
@@ -751,7 +785,7 @@ async function exportProjectLeads() {
 
     // New records (have project column set)
     let qNew = db.from('call_logs')
-      .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
+      .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
       .neq('project', '').not('project', 'is', null)
       .order('logged_at', { ascending: false });
 
@@ -763,7 +797,7 @@ async function exportProjectLeads() {
     while (true) {
       const { data, error } = await qNew.range(from, from + BATCH - 1);
       if (error) throw error;
-      allRecords = allRecords.concat(data || []);
+      allRecords = allRecords.concat((data || []).map(r => ({ ...r, _table: 'call_logs' })));
       if (!data || data.length < BATCH) break;
       from += BATCH;
     }
@@ -773,7 +807,7 @@ async function exportProjectLeads() {
     const projNames = (projReasons || []).map(r => r.name);
     if (projNames.length) {
       let qOld = db.from('call_logs')
-        .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
+        .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
         .in('call_reason', projNames)
         .or('project.is.null,project.eq.')
         .order('logged_at', { ascending: false });
@@ -786,7 +820,7 @@ async function exportProjectLeads() {
       while (true) {
         const { data, error } = await qOld.range(from, from + BATCH - 1);
         if (error) throw error;
-        allRecords = allRecords.concat(data || []);
+        allRecords = allRecords.concat((data || []).map(r => ({ ...r, _table: 'call_logs' })));
         if (!data || data.length < BATCH) break;
         from += BATCH;
       }
@@ -799,14 +833,17 @@ async function exportProjectLeads() {
       return;
     }
 
+    await attachFollowups(allRecords);
+
     // 3. بناء CSV
-    const headers = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile', 'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Unit Code', 'Status', 'Closed Date', 'Notes'];
+    const headers = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile', 'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Unit Code', 'Status', 'Closed Date', 'Follow-up Date', 'Follow-up Note', 'Notes'];
     const rows = allRecords.map(r => {
       const dt   = r.logged_at ? new Date(r.logged_at) : null;
       const date = dt ? dt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) : '';
       const time = dt ? dt.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
       const closedDt = r.closed_at ? new Date(r.closed_at) : null;
       const closedStr = closedDt ? closedDt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) + ' ' + closedDt.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
+      const followupStr = r._followupDate ? r._followupDate + (r._followupTime ? ' ' + r._followupTime : '') : '';
       return [
         date,
         time,
@@ -822,6 +859,8 @@ async function exportProjectLeads() {
         r.unit_code             || '',
         r.status === 'open' ? 'Open' : 'Closed',
         closedStr,
+        followupStr,
+        (r._followupNote || '').replace(/\n/g, ' '),
         (r.extra_notes || '').replace(/\n/g, ' '),
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     });
@@ -879,7 +918,7 @@ async function exportAllCalls() {
 
     async function fetchAllFromTable(table) {
       let q = db.from(table)
-        .select('logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,media_source,unit_code,status,closed_at,extra_notes')
+        .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,media_source,unit_code,status,closed_at,extra_notes')
         .order('logged_at', { ascending: false });
 
       if (f.dateFrom) q = q.gte('logged_at', localDateToUTCStart(f.dateFrom));
@@ -895,7 +934,7 @@ async function exportAllCalls() {
         const { data, error } = await q.range(from, from + BATCH - 1);
         if (error) throw error;
         const src = table === 'whatsapp_logs' ? 'WhatsApp' : 'Call';
-        allRecords = allRecords.concat((data || []).map(r => ({ ...r, _src: src })));
+        allRecords = allRecords.concat((data || []).map(r => ({ ...r, _src: src, _table: table })));
         if (!data || data.length < BATCH) break;
         from += BATCH;
       }
@@ -913,8 +952,10 @@ async function exportAllCalls() {
       return;
     }
 
+    await attachFollowups(allRecords);
+
     const csvHeaders = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile',
-                        'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Source', 'Media', 'Unit Code', 'Status', 'Closed Date', 'Notes'];
+                        'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Source', 'Media', 'Unit Code', 'Status', 'Closed Date', 'Follow-up Date', 'Follow-up Note', 'Notes'];
 
     const rows = allRecords.map(r => {
       const dt   = r.logged_at ? new Date(r.logged_at) : null;
@@ -922,6 +963,7 @@ async function exportAllCalls() {
       const time = dt ? dt.toLocaleTimeString('en-GB',  { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
       const closedDt = r.closed_at ? new Date(r.closed_at) : null;
       const closedStr = closedDt ? closedDt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) + ' ' + closedDt.toLocaleTimeString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }) : '';
+      const followupStr = r._followupDate ? r._followupDate + (r._followupTime ? ' ' + r._followupTime : '') : '';
       return [
         date, time,
         r.customer_name         || '',
@@ -938,6 +980,8 @@ async function exportAllCalls() {
         r.unit_code             || '',
         r.status === 'open' ? 'Open' : 'Closed',
         closedStr,
+        followupStr,
+        (r._followupNote || '').replace(/\n/g, ' '),
         (r.extra_notes || '').replace(/\n/g, ' '),
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     });
