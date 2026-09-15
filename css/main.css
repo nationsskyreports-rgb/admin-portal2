@@ -809,6 +809,13 @@ body {
 }
 .btn-info:hover { background: rgba(79,138,249,0.15); }
 
+.btn-warning {
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.25);
+  color: #D97706;
+}
+.btn-warning:hover { background: rgba(245,158,11,0.15); }
+
 .btn-sm   { padding: 5px 11px; font-size: 12px; border-radius: var(--r-sm); }
 .btn-icon { width: 30px; height: 30px; padding: 0; justify-content: center; border-radius: var(--r-sm); }
 
