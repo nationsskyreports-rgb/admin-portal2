@@ -103,6 +103,9 @@
           <i class="fas fa-arrow-left"></i> Back to Adherence
         </a>
         <button class="btn btn-ghost btn-sm" onclick="refreshCurrentTab()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+        <button class="btn btn-primary btn-sm" onclick="exportCSV()" id="export-btn" title="Export current view as CSV">
+          <i class="fas fa-file-csv"></i> Export
+        </button>
         <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Theme">
           <i class="fas fa-moon"></i>
         </button>
@@ -543,8 +546,113 @@ if (session) {
   document.getElementById('admin-avatar').innerText = initials(session.username || 'Admin');
 }
 
-let allAgents = [];
-let currentData = [];
+let allAgents     = [];
+let currentData   = [];
+let breakdownRows = [];   // holds last loadBreakdown() result for export
+
+// ═══════════════════════════════════════════
+// ── CSV EXPORT ──
+// ═══════════════════════════════════════════
+function exportCSV() {
+  const isBreakdown = document.getElementById('tab-breakdown')?.classList.contains('active');
+  const isManual    = document.getElementById('tab-manual')?.classList.contains('active');
+  const isBulk      = document.getElementById('tab-bulk')?.classList.contains('active');
+
+  if (isManual || isBulk) {
+    showToast('Nothing to export on this tab', 'warning');
+    return;
+  }
+
+  if (isBreakdown) {
+    _exportBreakdown();
+  } else {
+    _exportHistory();
+  }
+}
+
+function _csvRow(cells) {
+  return cells.map(c => {
+    const s = (c === null || c === undefined) ? '' : String(c);
+    return '"' + s.replace(/"/g, '""') + '"';
+  }).join(',');
+}
+
+function _downloadCSV(filename, rows) {
+  const bom     = '\uFEFF';                                // UTF-8 BOM for Excel
+  const content = bom + rows.join('\r\n');
+  const blob    = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href        = url;
+  a.download    = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Export downloaded ✅', 'success');
+}
+
+function _exportHistory() {
+  if (!currentData.length) {
+    showToast('No data to export', 'warning');
+    return;
+  }
+
+  const header = _csvRow(['Date', 'Agent', 'Deviation Type', 'Minutes Forgiven', 'Reason', 'Waived By', 'Waived At']);
+
+  const dataRows = currentData.map(r => {
+    const waivedAt = r.waived_at
+      ? new Date(r.waived_at).toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '';
+    return _csvRow([
+      r.deviation_date,
+      r.agent_name,
+      r.deviation_type,
+      r.deviation_minutes,
+      r.waive_reason || '',
+      r.waived_by || '',
+      waivedAt,
+    ]);
+  });
+
+  const { from, to } = getDateRange();
+  const filename = `Waive-History_${from}_${to}.csv`;
+  _downloadCSV(filename, [header, ...dataRows]);
+}
+
+function _exportBreakdown() {
+  if (!breakdownRows.length) {
+    showToast('Load the breakdown first', 'warning');
+    return;
+  }
+
+  const header = _csvRow([
+    'Agent',
+    'Total Missing',
+    'Extra Time',
+    'After Extra Time',
+    'Waived (min)',
+    'Net Missing',
+    'Net Missing (H:MM:SS)',
+    'Result',
+    'Full Time Reason',
+  ]);
+
+  const dataRows = breakdownRows.map(r => _csvRow([
+    r.name,
+    secToHMS(r.totalMissingSec),
+    r.totalExtraSec > 0 ? secToHMS(r.totalExtraSec) : '0:00:00',
+    secToHMS(r.afterExtra),
+    r.waivedMin,
+    secToHMS(r.netMissingSec),
+    secToHMS(r.netMissingSec),
+    r.isFullTime ? 'Full Time' : 'Missing Time',
+    r.isFullTime ? r.reason : '',
+  ]));
+
+  const bdMonth = document.getElementById('bd-month')?.value || '';
+  const bdYear  = document.getElementById('bd-year')?.value  || '';
+  const filename = `Net-Missing-Breakdown_${bdYear}-${bdMonth}.csv`;
+  _downloadCSV(filename, [header, ...dataRows]);
+}
 
 // ── TAB SWITCH ──
 function switchTab(name) {
@@ -1113,6 +1221,7 @@ async function loadBreakdown() {
         return { name: agent.formal_name, totalMissingSec, totalExtraSec, afterExtra, waivedMin, waivedSec, netMissingSec, isFullTime, reason };
       });
 
+    breakdownRows = rows;   // store for CSV export
     document.getElementById('bd-row-count').innerText = rows.length + ' agent(s)';
 
     if (!rows.length) {
