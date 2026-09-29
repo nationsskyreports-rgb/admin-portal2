@@ -591,6 +591,7 @@ async function viewRecord(id, src) {
     ['Project',              c.project],
     ['Category 1',           c.category_1],
     ['Category 2',           c.call_reason],
+    ['Category 3',           c.category_3],
     ['Agent',                c.agent_name],
     ['Direction',            c.call_direction === 'outbound' ? '📤 Outbound' : '📥 Inbound'],
     ['Channel',              c.communication_channel],
@@ -785,7 +786,7 @@ async function exportProjectLeads() {
 
     // New records (have project column set)
     let qNew = db.from('call_logs')
-      .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
+      .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,category_3,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
       .neq('project', '').not('project', 'is', null)
       .order('logged_at', { ascending: false });
 
@@ -807,7 +808,7 @@ async function exportProjectLeads() {
     const projNames = (projReasons || []).map(r => r.name);
     if (projNames.length) {
       let qOld = db.from('call_logs')
-        .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
+        .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,category_3,agent_name,call_direction,communication_channel,unit_code,status,closed_at,extra_notes')
         .in('call_reason', projNames)
         .or('project.is.null,project.eq.')
         .order('logged_at', { ascending: false });
@@ -836,7 +837,7 @@ async function exportProjectLeads() {
     await attachFollowups(allRecords);
 
     // 3. بناء CSV
-    const headers = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile', 'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Unit Code', 'Status', 'Closed Date', 'Follow-up Date', 'Follow-up Note', 'Notes'];
+    const headers = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile', 'Project', 'Category 1', 'Category 2', 'Category 3', 'Agent', 'Direction', 'Channel', 'Unit Code', 'Status', 'Closed Date', 'Follow-up Date', 'Follow-up Note', 'Notes'];
     const rows = allRecords.map(r => {
       const dt   = r.logged_at ? new Date(r.logged_at) : null;
       const date = dt ? dt.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) : '';
@@ -853,6 +854,7 @@ async function exportProjectLeads() {
         r.project               || '',
         r.category_1            || '',
         r.call_reason           || '',
+        r.category_3            || '',
         r.agent_name            || '',
         r.call_direction === 'outbound' ? 'Outbound' : 'Inbound',
         r.communication_channel || '',
@@ -918,7 +920,7 @@ async function exportAllCalls() {
 
     async function fetchAllFromTable(table) {
       let q = db.from(table)
-        .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,agent_name,call_direction,communication_channel,media_source,unit_code,status,closed_at,extra_notes')
+        .select('id,logged_at,customer_name,customer_mobile,customer_mobile2,project,category_1,call_reason,category_3,agent_name,call_direction,communication_channel,media_source,unit_code,status,closed_at,extra_notes')
         .order('logged_at', { ascending: false });
 
       if (f.dateFrom) q = q.gte('logged_at', localDateToUTCStart(f.dateFrom));
@@ -955,7 +957,7 @@ async function exportAllCalls() {
     await attachFollowups(allRecords);
 
     const csvHeaders = ['Date', 'Time', 'Customer Name', 'Mobile', 'Alt Mobile',
-                        'Project', 'Category 1', 'Category 2', 'Agent', 'Direction', 'Channel', 'Source', 'Media', 'Unit Code', 'Status', 'Closed Date', 'Follow-up Date', 'Follow-up Note', 'Notes'];
+                        'Project', 'Category 1', 'Category 2', 'Category 3', 'Agent', 'Direction', 'Channel', 'Source', 'Media', 'Unit Code', 'Status', 'Closed Date', 'Follow-up Date', 'Follow-up Note', 'Notes'];
 
     const rows = allRecords.map(r => {
       const dt   = r.logged_at ? new Date(r.logged_at) : null;
@@ -972,6 +974,7 @@ async function exportAllCalls() {
         r.project               || '',
         r.category_1            || '',
         r.call_reason           || '',
+        r.category_3            || '',
         r.agent_name            || '',
         r.call_direction === 'outbound' ? 'Outbound' : 'Inbound',
         r.communication_channel || '',
